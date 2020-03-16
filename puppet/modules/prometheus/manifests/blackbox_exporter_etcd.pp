@@ -53,20 +53,22 @@ class prometheus::blackbox_exporter_etcd (
       }
     }
 
-    prometheus::scrape_config { 'etcd-overlay':
-      order  =>  160,
-      config => {
-        'metrics_path'    => '/probe',
-        'params'          => { 'module' => ['etcd_overlay_proxy'] },
-        'dns_sd_configs'  => [{
-          'names' => $tarmak::etcd_cluster_exporters,
-        }],
-        'relabel_configs' => [{
-          'source_labels' => [],
-          'regex'         => '(.*)',
-          'target_label'  => '__param_target',
-          'replacement'   => "https://127.0.0.1:${etcd_overlay_port}/metrics",
-        }],
+    if $::tarmak::calico_backend != 'kubernetes' {
+      prometheus::scrape_config { 'etcd-overlay':
+        order  =>  160,
+        config => {
+          'metrics_path'    => '/probe',
+          'params'          => { 'module' => ['etcd_overlay_proxy'] },
+          'dns_sd_configs'  => [{
+            'names' => $tarmak::etcd_cluster_exporters,
+          }],
+          'relabel_configs' => [{
+            'source_labels' => [],
+            'regex'         => '(.*)',
+            'target_label'  => '__param_target',
+            'replacement'   => "https://127.0.0.1:${etcd_overlay_port}/metrics",
+          }],
+        }
       }
     }
 

@@ -10,6 +10,9 @@ metadata:
 provisioner: kubernetes.io/aws-ebs
 parameters:
   type: gp2
+<% if scope['kubernetes::storage_encrypted'] -%>
+  encrypted: 'true'
+<% end -%>
 ---
 apiVersion: storage.k8s.io/v1beta1
 kind: StorageClass
@@ -20,3 +23,6 @@ metadata:
 provisioner: kubernetes.io/aws-ebs
 parameters:
   type: standard
+<% if scope['kubernetes::storage_encrypted'] -%>
+  encrypted: 'true'
+<% end -%>

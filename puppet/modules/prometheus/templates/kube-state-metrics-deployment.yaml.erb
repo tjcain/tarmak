@@ -34,11 +34,11 @@ spec:
         image: <%= @resizer_image %>:<%= @resizer_version %>
         resources:
           limits:
-            cpu: 100m
-            memory: 30Mi
+            cpu: '1'
+            memory: 300Mi
           requests:
-            cpu: 100m
-            memory: 30Mi
+            cpu: 200m
+            memory: 300Mi
         env:
           - name: MY_POD_NAME
             valueFrom:
@@ -51,9 +51,9 @@ spec:
         command:
           - /pod_nanny
           - --container=kube-state-metrics
-          - --cpu=100m
+          - --cpu=1000m
           - --extra-cpu=1m
-          - --memory=100Mi
+          - --memory=300Mi
           - --extra-memory=2Mi
           - --threshold=5
           - --deployment=kube-state-metrics

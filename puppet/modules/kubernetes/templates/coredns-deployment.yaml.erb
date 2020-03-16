@@ -29,8 +29,6 @@ spec:
 <%- end -%>
     spec:
       tolerations:
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
         - key: "CriticalAddonsOnly"
           operator: "Exists"
       volumes:
@@ -42,7 +40,7 @@ spec:
               path: Corefile
       containers:
       - name: coredns
-        image: coredns/coredns:1.2.0
+        image: coredns/coredns:1.5.0
         imagePullPolicy: IfNotPresent
         resources:
           limits:

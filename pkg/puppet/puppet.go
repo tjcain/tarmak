@@ -95,6 +95,15 @@ func (p *Puppet) Initialize(packerBuild bool) error {
 	return nil
 }
 
+func amazonClusterConfig(conf *clusterv1alpha1.ClusterAmazon, hieraData *hieraData) {
+        if conf == nil {
+                return
+        }
+        if conf.EBSEncrypted != nil {
+                hieraData.variables = append(hieraData.variables, fmt.Sprintf(`kubernetes::storage_encrypted: true`))
+        }
+}
+
 func kubernetesClusterConfig(conf *clusterv1alpha1.ClusterKubernetes, hieraData *hieraData) {
 	if conf == nil {
 		return
@@ -402,6 +411,7 @@ func (p *Puppet) contentClusterConfig(cluster interfaces.Cluster) ([]string, err
 		hieraData.variables = append(hieraData.variables, fmt.Sprintf("tarmak::master::apiserver_additional_san_domains: %s", string(sansJSON)))
 	}
 	kubernetesClusterConfig(cluster.Config().Kubernetes, hieraData)
+        amazonClusterConfig(cluster.Config().Amazon, hieraData)
 
 	hieraData.classes = append(hieraData.classes, `tarmak::fluent_bit`)
 	if cluster.Config().LoggingSinks != nil && len(cluster.Config().LoggingSinks) > 0 {

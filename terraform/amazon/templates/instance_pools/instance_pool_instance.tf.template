@@ -191,7 +191,7 @@ resource "aws_instance" "{{.TFName}}" {
   user_data = "${element(data.template_file.{{.TFName}}_user_data.*.rendered, count.index)}"
 
   lifecycle {
-    ignore_changes = ["volume_tags", "tags"]
+    ignore_changes = ["volume_tags", "tags", "user_data"]
   }
 }
 

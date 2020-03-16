@@ -78,6 +78,7 @@ class kubernetes::apiserver(
   $tls_cipher_suites = $::kubernetes::tls_cipher_suites
 
   $post_1_14 = versioncmp($::kubernetes::version, '1.14.0') >= 0
+  $pre_1_14 = versioncmp($::kubernetes::version, '1.14.0') < 0
   $post_1_11 = versioncmp($::kubernetes::version, '1.11.0') >= 0
   $post_1_10 = versioncmp($::kubernetes::version, '1.10.0') >= 0
   $post_1_9 = versioncmp($::kubernetes::version, '1.9.0') >= 0
