@@ -77,6 +77,7 @@ class kubernetes::apiserver(
   $post_1_14 = versioncmp($::kubernetes::version, '1.14.0') >= 0
   $post_1_13 = versioncmp($::kubernetes::version, '1.13.0') >= 0
   $post_1_12 = versioncmp($::kubernetes::version, '1.12.0') >= 0
+  $pre_1_14 = versioncmp($::kubernetes::version, '1.14.0') < 0
   $post_1_11 = versioncmp($::kubernetes::version, '1.11.0') >= 0
   $post_1_10 = versioncmp($::kubernetes::version, '1.10.0') >= 0
   $post_1_9 = versioncmp($::kubernetes::version, '1.9.0') >= 0
