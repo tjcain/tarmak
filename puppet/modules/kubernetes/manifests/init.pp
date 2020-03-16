@@ -1,7 +1,9 @@
 # Class: kubernetes
 class kubernetes (
   $version = $::kubernetes::params::version,
+  $aia_version = $::kubernetes::params::aws_authenticator_version,
   $bin_dir = $::kubernetes::params::bin_dir,
+  $aia_bin_dir = '/opt/aws_authenticator',
   $download_dir = $::kubernetes::params::download_dir,
   $dest_dir = $::kubernetes::params::dest_dir,
   $config_dir = $::kubernetes::params::config_dir,
@@ -17,7 +19,7 @@ class kubernetes (
   $ssl_dir = undef,
   $source = undef,
   Enum['aws', ''] $cloud_provider = '',
-  $aws_iam_authenticator_image = 'gcr.io/heptio-images/authenticator@sha256:8699a69cbd7274810a63cfb67b7053166897831c734011c62ce0aee32d66b3b8',
+  $storage_encrypted = undef,
   $cluster_name = undef,
   $dns_root = undef,
   $cluster_dns = undef,
@@ -116,6 +118,13 @@ class kubernetes (
     'G'
   )
   $_dest_dir = "${dest_dir}/kubernetes-${version}"
+
+  $aia_download_url = regsubst(
+    $::kubernetes::params::aws_authenticator_download_url,
+    '#VERSION#',
+    $aia_version,
+    'G'
+  )
 
   if $ssl_dir == undef {
     $_ssl_dir = "${config_dir}/ssl"

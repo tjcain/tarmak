@@ -10,7 +10,7 @@ Group=<%= scope['kubernetes::group'] %>
 <%- if scope['kubernetes::_service_account_key_file'] and scope['kubernetes::service_account_key_generate'] -%>
 ExecStartPre=/bin/sh -c "test -e <%= scope['kubernetes::_service_account_key_file'] %> || { openssl genrsa -out <%= scope['kubernetes::_service_account_key_file'] %> 2048 && chmod 640 <%= scope['kubernetes::_service_account_key_file'] %>; }"
 <% end -%>
-ExecStart=<%= scope['kubernetes::_dest_dir'] %>/apiserver \
+ExecStart=<%= scope['kubernetes::_dest_dir'] %>/<%= @command_name %> \
   --v=<%= scope['kubernetes::log_level'] %> \
 <% if @allow_privileged -%>
   --allow-privileged=true \
@@ -92,6 +92,15 @@ ExecStart=<%= scope['kubernetes::_dest_dir'] %>/apiserver \
 <%- if scope['kubernetes::_service_account_key_file'] -%>
   --service-account-key-file=<%= scope['kubernetes::_service_account_key_file'] %> \
   --service-account-lookup \
+<% if @post_1_12 -%>
+ "--service-account-signing-key-file=<%= scope['kubernetes::_service_account_key_file'] %>" \
+ "--service-account-issuer=<%= @service_account_issuer %>" \
+<% if @post_1_13 -%>
+  --api-audiences=<%= @_service_account_api_audiences.join(',') %> \
+<% else -%>
+  --service-account-api-audiences=<%= @_service_account_api_audiences.join(',') %> \
+<% end -%>
+<% end -%>
 <% end -%>
 <% if @_feature_gates && @_feature_gates.length > 0 -%>
   --feature-gates=<% g = @_feature_gates.to_a.collect{|k| k.join('=')}.join(',') -%><%= g %> \

@@ -20,8 +20,8 @@ write_files:
     After=network.target
 
     [Service]
-    Environment=ETCD_VERSION=3.2.25
-    Environment=ETCD_HASH=8a509ffb1443088d501f19e339a0d9c0058ce20599752c3baef83c1c68790ef7
+    Environment=ETCD_VERSION=3.2.26
+    Environment=ETCD_HASH=127d4f2097c09d929beb9d3784590cc11102f4b4d4d4da7ad82d5c9e856afd38
     Environment=ETCD_DATA_DIR=/var/lib/etcd
     PermissionsStartOnly=true
     Restart=on-failure
@@ -68,7 +68,7 @@ write_files:
 {{- else }}
     Environment=AIRWORTHY_VERSION=0.2.0
     Environment=AIRWORTHY_HASH=2d69cfe0b92f86481805c28d0b8ae47a8ffa6bb2373217e7c5215d61fc9efa1d
-    Environment=WING_VERSION=0.6.4
+    Environment=WING_VERSION=0.6.7
     ExecStartPre=/bin/sh -c '\
       set -e ;\
       test -x /opt/wing-$${WING_VERSION}/wing && exit 0 ;\

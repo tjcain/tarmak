@@ -463,7 +463,7 @@ IAM Authentication
 
 Tarmak supports authentication using aws-iam-authenticator. You can enable this using the following
 snippet, although this doesn't deploy the authenticator to the cluster - this will need configuring
-for your environment using the instructions `here <https://github.com/kubernetes-sigs/aws-iam-authenticator>`_.
+for your environment using the instructions on `github <https://github.com/kubernetes-sigs/aws-iam-authenticator>`_.
 Effectively, the snippet below performs steps 2 and 3 of these instructions for you.
 
 .. code-block:: yaml
@@ -471,7 +471,7 @@ Effectively, the snippet below performs steps 2 and 3 of these instructions for 
     kubernetes:
       apiServer:
         amazon:
-          aws-iam-authenticator-init: true
+          awsIAMAuthenticatorInit: true
     ...
 
 See the examples section for yaml files to configure the authenticator daemon set, config map and kubeconfig.
@@ -657,6 +657,21 @@ This can be used together with `Secure public endpoints <user-guide.html#secure-
   kubernetes:
     apiServer:
       public: true
+
+Authenticator Token Webhook file
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can configure an authentication token webhook for the apiserver - this is the path to the file
+containing said configuration. There is a *default* value for this if using the aws-iam-authenticator, 
+but if you are customising this component, or using an alternative webhook authentication system (e.g.
+Appscode Guard) you can set / override it here as appropriate. The file must exist for the apiserver
+to start up.
+
+.. code-block:: yaml
+
+  kubernetes:
+    apiServer:
+      authTokenWebhookFile: /etc/kubernetes/shiny-new-authenticator/kubeconfig.yaml
 
 Secure public endpoints
 ~~~~~~~~~~~~~~~~~~~~~~~

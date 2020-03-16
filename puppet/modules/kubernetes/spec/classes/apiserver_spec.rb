@@ -51,7 +51,10 @@ describe 'kubernetes::apiserver' do
 
   context 'iam authenticator' do
     context 'default' do
-      it { should_not contain_file(service_file).with_content(%r{aws-iam-authenticator-init.service}) }
+      it do
+        should contain_class('kubernetes::aws_iam_authenticator_init').with('file_ensure' => 'absent')
+        should_not contain_file(service_file).with_content(%r{aws-iam-authenticator-init.service})
+      end
     end
 
     context 'iam authenticator enabled' do
@@ -61,7 +64,7 @@ describe 'kubernetes::apiserver' do
         """
       ]}
       it { should contain_file(service_file).with_content(/#{Regexp.escape('Requires=')}.*#{Regexp.escape('aws-iam-authenticator-init.service')}/) }
-      it { should contain_class('kubernetes::aws_iam_authenticator_init') }
+      it { should contain_class('kubernetes::aws_iam_authenticator_init').with('file_ensure' => 'file') }
       it { should contain_file(service_file).with_content(/#{Regexp.escape('--authentication-token-webhook-config-file=/etc/kubernetes/aws-iam-authenticator/kubeconfig.yaml')}/) }
     end
   end
@@ -354,6 +357,59 @@ describe 'kubernetes::apiserver' do
           it {should contain_file(service_file).with_content(/#{Regexp.escape('--enable-admission-plugins=NamespaceLifecycle,LimitRanger,foo')}/)}
           it {should contain_file(service_file).with_content(/#{Regexp.escape('--disable-admission-plugins=')}/)}
         end
+      end
+    end
+  end
+
+  context 'bound service token flags' do
+    context 'with kubernetes 1.12+' do
+      let(:pre_condition) {[
+        """
+            class{'kubernetes': version => '1.12.0', service_account_key_file => '/etc/kubernetes/sa.key'}
+        """
+      ]}
+      it do
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-signing-key-file=/etc/kubernetes/sa.key')}/)
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-issuer=kubernetes.default.svc')}/)
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-api-audiences=kubernetes.default.svc')}/)
+      end
+    end
+    context 'with kubernetes 1.12+ and less then 1.13+ with custom audiences' do
+      let(:pre_condition) {[
+        """
+            class{'kubernetes': version => '1.12.0', service_account_key_file => '/etc/kubernetes/sa.key'}
+            class{'kubernetes::apiserver': service_account_api_audiences => ['kubernetes.default.svc', 'my.custom.aud.svc']}
+        """
+      ]}
+      it do
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-signing-key-file=/etc/kubernetes/sa.key')}/)
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-issuer=kubernetes.default.svc')}/)
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-api-audiences=kubernetes.default.svc,my.custom.aud.svc')}/)
+      end
+    end
+    context 'with kubernetes 1.13+ with custom audiences' do
+      let(:pre_condition) {[
+        """
+            class{'kubernetes': version => '1.13.0', service_account_key_file => '/etc/kubernetes/sa.key'}
+            class{'kubernetes::apiserver': service_account_api_audiences => ['kubernetes.default.svc', 'my.custom.aud.svc']}
+        """
+      ]}
+      it do
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-signing-key-file=/etc/kubernetes/sa.key')}/)
+        should contain_file(service_file).with_content(/#{Regexp.escape('--service-account-issuer=kubernetes.default.svc')}/)
+        should contain_file(service_file).with_content(/#{Regexp.escape('--api-audiences=kubernetes.default.svc,my.custom.aud.svc')}/)
+      end
+    end
+    context 'with kubernetes before 1.12' do
+      let(:pre_condition) {[
+        """
+            class{'kubernetes': version => '1.11.0', service_account_key_file => '/etc/kubernetes/sa.key'}
+        """
+      ]}
+      it do
+        should_not contain_file(service_file).with_content(/#{Regexp.escape('--service-account-signing-key-file=/etc/kubernetes/sa.key')}/)
+        should_not contain_file(service_file).with_content(/#{Regexp.escape('--service-account-issuer=')}/)
+        should_not contain_file(service_file).with_content(/#{Regexp.escape('--service-account-api-audiences=')}/)
       end
     end
   end

@@ -11,12 +11,79 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 | Application | Supported versions  | Default   |
 |-------------|--------------------:|----------:|
 | Packer      |                     | `1.2.5`   |
+| Terraform   |                     | `0.11.14` |
+| Consul      |                     | `1.2.4`   |
+| Vault       |                     | `0.9.6`   |
+| Kubernetes  | `>= 1.10 && < 1.14` | `1.12.9`  |
+| Calico      |                     | `3.1.4`   |
+| Vault Helper|                     | `0.9.15`  |
+| Etcd        |                     | `3.2.26`  |
+
+## [0.6.7]: 0.6.7 - 2019-08-05
+
+### Changed
+
+* Mark Vault certificates for renewal 30 days before expiry (#828, [@joshvanl](https://github.com/joshvanl)
+
+### Versions
+
+| Application | Supported versions  | Default   |
+|-------------|--------------------:|----------:|
+| Packer      |                     | `1.2.5`   |
 | Terraform   |                     | `0.11.11` |
 | Consul      |                     | `1.2.4`   |
 | Vault       |                     | `0.9.6`   |
-| Kubernetes  | `>= 1.10 && < 1.14` | `1.12.7`  |
+| Kubernetes  | `>= 1.10 && < 1.14` | `1.12.9`  |
 | Calico      |                     | `3.1.4`   |
-| Vault Helper|                     | `0.9.13`  |
+| Vault Helper|                     | `0.9.15`  |
+| Etcd        |                     | `3.2.25`  |
+
+## [0.6.6]: 0.6.6 - 2019-06-24
+
+### Changed
+
+* Upgrade golang to 1.11.11 (#823, [@jetstack-bot](https://github.com/jetstack-bot))
+* Upgrade default kubernetes version to 1.12.9 (#821, [@jetstack-bot](https://github.com/jetstack-bot))
+* Rebuilt AMI contains fixes for [MDS](https://access.redhat.com/security/vulnerabilities/mds) and [SACK DoS](https://access.redhat.com/errata/RHSA-2019:1481)
+
+### Versions
+
+| Application | Supported versions  | Default   |
+|-------------|--------------------:|----------:|
+| Packer      |                     | `1.2.5`   |
+| Terraform   |                     | `0.11.11` |
+| Consul      |                     | `1.2.4`   |
+| Vault       |                     | `0.9.6`   |
+| Kubernetes  | `>= 1.10 && < 1.14` | `1.12.9`  |
+| Calico      |                     | `3.1.4`   |
+| Vault Helper|                     | `0.9.15`  |
+| Etcd        |                     | `3.2.25`  |
+
+## [0.6.5]: 0.6.5 - 2019-05-27
+
+### Changed
+
+* Upgrade golang to 1.11.10 (#814, [@jetstack-bot](https://github.com/jetstack-bot))
+* Upgrade default Kubernetes version to 1.12.8 (#812, [@jetstack-bot](https://github.com/jetstack-bot))
+
+### Fixed
+
+* Fix consul-backinator installation (#799, [@JoshVanL](https://github.com/JoshVanL))
+* Fix validity of vault init tokens by upgrading vault-helper to 0.9.15 (#803, [@JoshVanL](https://github.com/JoshVanL))
+* Remove Initializers apiserver admission plugin for versions >= 1.14  (#795, [@JoshVanL](https://github.com/JoshVanL))
+* Adds deployment update permissions to metrics-server-nanny container (#791, [@JoshVanL](https://github.com/JoshVanL))
+
+### Versions
+
+| Application | Supported versions  | Default   |
+|-------------|--------------------:|----------:|
+| Packer      |                     | `1.2.5`   |
+| Terraform   |                     | `0.11.11` |
+| Consul      |                     | `1.2.4`   |
+| Vault       |                     | `0.9.6`   |
+| Kubernetes  | `>= 1.10 && < 1.14` | `1.12.8`  |
+| Calico      |                     | `3.1.4`   |
+| Vault Helper|                     | `0.9.15`  |
 | Etcd        |                     | `3.2.25`  |
 
 ## [0.6.4]: 0.6.4 - 2019-03-29
@@ -555,6 +622,9 @@ This detailed changes have happend since the last minor version of Tarmak:
 | Vault       |                    | `0.7.3`  |
 | Kubernetes  | `>= 1.5 && < 1.8`  | `1.7.7`  |
 
+[0.6.6]: https://github.com/jetstack/tarmak/compare/0.6.6...0.6.7
+[0.6.6]: https://github.com/jetstack/tarmak/compare/0.6.5...0.6.6
+[0.6.5]: https://github.com/jetstack/tarmak/compare/0.6.4...0.6.5
 [0.6.4]: https://github.com/jetstack/tarmak/compare/0.6.3...0.6.4
 [0.6.3]: https://github.com/jetstack/tarmak/compare/0.6.2...0.6.3
 [0.6.2]: https://github.com/jetstack/tarmak/compare/0.6.1...0.6.2
