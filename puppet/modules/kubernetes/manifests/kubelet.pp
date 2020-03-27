@@ -64,6 +64,7 @@ class kubernetes::kubelet(
   $max_user_instances = $::kubernetes::max_user_instances
   $max_user_watches = $::kubernetes::max_user_watches
 
+  $post_1_16 = versioncmp($::kubernetes::version, '1.16.0') >= 0
   $post_1_15 = versioncmp($::kubernetes::version, '1.15.0') >= 0
   $post_1_11 = versioncmp($::kubernetes::version, '1.11.0') >= 0
   $post_1_10 = versioncmp($::kubernetes::version, '1.10.0') >= 0
@@ -137,7 +138,7 @@ class kubernetes::kubelet(
 
   if !$_register_schedulable {
     $_default_node_taints = {
-      'node-role.kubernetes.io/master' => ':NoSchedule',
+      'role.kubernetes.io/master' => ':NoSchedule',
     }
   } else {
     $_default_node_taints = {}
@@ -153,9 +154,17 @@ class kubernetes::kubelet(
   $_node_taints_string =
     delete_undef_values($_merged_node_taints.map |$k,$v| { $v ? { 'REMOVE:REMOVE' => undef, default => "${k}=${v}" } }).join(',')
 
-  $_default_node_labels = {
-    'role'                            => $role,
-    "node-role.kubernetes.io/${role}" => '',
+
+  if $post_1_16 {
+    $_default_node_labels = {
+      'role'                            => $role,
+      "node.kubernetes.io/${role}"        => '',
+    }
+  } else {
+    $_default_node_labels = {
+      'role'                            => $role,
+      "node-role.kubernetes.io/${role}" => '',
+    }
   }
 
   if $node_labels == undef {
