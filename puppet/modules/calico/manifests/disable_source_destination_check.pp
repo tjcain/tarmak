@@ -38,6 +38,12 @@ class calico::disable_source_destination_check(
       $version_before_1_6 = true
     }
 
+    if versioncmp($::kubernetes::version, '1.16.0') >= 0 {
+      $version_before_1_16 = false
+    } else {
+      $version_before_1_16 = true
+    }
+
     $aws_region = $::ec2_metadata['placement']['availability-zone'][0,-2]
 
     kubernetes::apply{'disable-srcdest-node':

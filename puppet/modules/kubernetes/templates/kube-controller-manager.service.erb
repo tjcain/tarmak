@@ -18,6 +18,7 @@ ExecStart=<%= scope['kubernetes::_dest_dir'] %>/<%= @command_name %> \
 <% if @allocate_node_cidrs -%>
   --cluster-cidr=<%= scope['kubernetes::pod_network'] %> \
   --allocate-node-cidrs=true \
+  --configure-cloud-routes=false \
 <% end -%>
   --kubeconfig=<%= @kubeconfig_path %> \
 <% if scope['kubernetes::controller_manager::ca_file'] -%>

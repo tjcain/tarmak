@@ -2,7 +2,7 @@
 # as the Calico CNI plugins and network config on
 # each master and worker node in a Kubernetes cluster.
 kind: DaemonSet
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 metadata:
   name: calico-node
   namespace: kube-system
@@ -163,27 +163,36 @@ spec:
             requests:
               cpu: 250m
           livenessProbe:
-            httpGet:
-              path: /liveness
-              port: 9099
+            exec:
+              command:
+              - /bin/calico-node
+              - -felix-live
+              - -bird-live
             periodSeconds: 10
             initialDelaySeconds: 10
             failureThreshold: 6
           readinessProbe:
-            httpGet:
-              path: /readiness
-              port: 9099
+            exec:
+              command:
+              - /bin/calico-node
+              - -felix-ready
+              - -bird-ready
             periodSeconds: 10
           volumeMounts:
             - mountPath: /lib/modules
               name: lib-modules
               readOnly: true
+            - mountPath: /run/xtables.lock
+              name: xtables-lock
+              readOnly: false
             - mountPath: /var/run/calico
               name: var-run-calico
               readOnly: false
             - mountPath: /var/lib/calico
               name: var-lib-calico
               readOnly: false
+            - name: policysync
+              mountPath: /var/run/nodeagent
 <% if @etcd_proto == 'https' -%>
             - mountPath: <%= @etcd_cert_path %>
               name: etcd-certs
@@ -240,6 +249,10 @@ spec:
         - name: var-lib-calico
           hostPath:
             path: /var/lib/calico
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
         # Used to install CNI.
         - name: cni-bin-dir
           hostPath:
@@ -247,6 +260,10 @@ spec:
         - name: cni-net-dir
           hostPath:
             path: /etc/cni/net.d
+        - name: policysync
+          hostPath:
+            type: DirectoryOrCreate
+            path: /var/run/nodeagent
 <% if @backend == 'etcd' and @etcd_proto == 'https' -%>
         # Mount in the etcd TLS secrets.
         - name: etcd-certs

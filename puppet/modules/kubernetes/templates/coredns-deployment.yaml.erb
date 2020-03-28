@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: coredns
@@ -40,7 +40,7 @@ spec:
               path: Corefile
       containers:
       - name: coredns
-        image: coredns/coredns:1.5.0
+        image: coredns/coredns:1.6.9
         imagePullPolicy: IfNotPresent
         resources:
           limits:

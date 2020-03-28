@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: k8s-ec2-srcdst
@@ -40,8 +40,13 @@ spec:
       - key: "dedicated"
         value: "master"
         effect: "NoSchedule"
+<%-   if @version_before_1_16 -%>
       - key: node-role.kubernetes.io/master
         effect: NoSchedule
+<%-   else -%>
+      - key: role.kubernetes.io/master
+        effect: NoSchedule
+<%-   end -%>  
 <%- end -%>
       containers:
         - image: <%= @image %>:v<%= @version %>

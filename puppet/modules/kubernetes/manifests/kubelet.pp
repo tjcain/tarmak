@@ -157,7 +157,8 @@ class kubernetes::kubelet(
 
   if $post_1_16 {
     $_default_node_labels = {
-      'role'                            => $role,
+      'role'                              => $role,
+      'kubelet.kubernetes.io/role'        => $role,
       "node.kubernetes.io/${role}"        => '',
     }
   } else {
