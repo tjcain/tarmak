@@ -40,13 +40,10 @@ spec:
       - key: "dedicated"
         value: "master"
         effect: "NoSchedule"
-<%-   if @version_before_1_16 -%>
       - key: node-role.kubernetes.io/master
         effect: NoSchedule
-<%-   else -%>
-      - key: role.kubernetes.io/master
+      - key: node.kubernetes.io/master
         effect: NoSchedule
-<%-   end -%>  
 <%- end -%>
       containers:
         - image: <%= @image %>:v<%= @version %>
