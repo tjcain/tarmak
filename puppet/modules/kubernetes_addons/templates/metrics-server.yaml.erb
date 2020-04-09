@@ -89,11 +89,18 @@ spec:
         imagePullPolicy: Always
         args:
         - --use-apiserver-proxy
+        - --cert-dir=/tmp
+        - --secure-port=4443
+        - --kubelet-port=443
         ports:
-        - containerPort: 443
-          name: https
+        - containerPort: 4443
+          name: https-nonroot
           protocol: TCP
 <% unless @version_before_1_8 -%>
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
         volumeMounts:
         - name: tmp-dir
           mountPath: /tmp
@@ -123,7 +130,7 @@ spec:
   ports:
   - port: 443
     protocol: TCP
-    targetPort: 443
+    targetPort: 4443
 ---
 apiVersion: v1
 kind: ConfigMap

@@ -1,28 +1,58 @@
 ---
-apiVersion: storage.k8s.io/v1beta1
+apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: fast
   annotations:
     storageclass.beta.kubernetes.io/is-default-class: "true"
   labels:
-      addonmanager.kubernetes.io/mode: EnsureExists
+    addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
 parameters:
   type: gp2
+  allowVolumeExpansion: "true"
 <% if scope['kubernetes::storage_encrypted'] -%>
-  encrypted: 'true'
+  encrypted: "true"
 <% end -%>
 ---
-apiVersion: storage.k8s.io/v1beta1
+apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: slow
   labels:
-      addonmanager.kubernetes.io/mode: EnsureExists
+    addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
 parameters:
   type: standard
+  allowVolumeExpansion: "true"
 <% if scope['kubernetes::storage_encrypted'] -%>
-  encrypted: 'true'
+  encrypted: "true"
+<% end -%>
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: throughput
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: st1
+  allowVolumeExpansion: "true"
+<% if scope['kubernetes::storage_encrypted'] -%>
+  encrypted: "true"
+<% end -%>
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cold
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+provisioner: kubernetes.io/aws-ebs
+parameters:
+  type: sc1
+  allowVolumeExpansion: "true"
+<% if scope['kubernetes::storage_encrypted'] -%>
+  encrypted: "true"
 <% end -%>

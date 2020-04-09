@@ -4,8 +4,6 @@ classes:
 - tarmak::worker
 - tarmak::overlay_calico
 - kubernetes_addons::metrics_server
-- kubernetes_addons::heapster
-- kubernetes_addons::influxdb
-- kubernetes_addons::grafana
+- kubernetes_addons::node_label_bodger
 
 kubernetes::kubelet::role: master
