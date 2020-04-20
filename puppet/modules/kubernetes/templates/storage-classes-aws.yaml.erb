@@ -8,9 +8,9 @@ metadata:
   labels:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
+allowVolumeExpansion: "true"
 parameters:
   type: gp2
-  allowVolumeExpansion: "true"
 <% if scope['kubernetes::storage_encrypted'] -%>
   encrypted: "true"
 <% end -%>
@@ -22,9 +22,9 @@ metadata:
   labels:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
+allowVolumeExpansion: "true"
 parameters:
   type: standard
-  allowVolumeExpansion: "true"
 <% if scope['kubernetes::storage_encrypted'] -%>
   encrypted: "true"
 <% end -%>
@@ -36,9 +36,9 @@ metadata:
   labels:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
+allowVolumeExpansion: "true"
 parameters:
   type: st1
-  allowVolumeExpansion: "true"
 <% if scope['kubernetes::storage_encrypted'] -%>
   encrypted: "true"
 <% end -%>
@@ -50,9 +50,9 @@ metadata:
   labels:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
+allowVolumeExpansion: "true"
 parameters:
   type: sc1
-  allowVolumeExpansion: "true"
 <% if scope['kubernetes::storage_encrypted'] -%>
   encrypted: "true"
 <% end -%>
