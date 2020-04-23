@@ -37,6 +37,7 @@
         "ec2:DeleteSecurityGroup",
         "ec2:DeleteVolume",
         "ec2:DetachVolume",
+        "ec2:ModifyVolume",
         "ec2:RevokeSecurityGroupIngress"
       ],
       "Resource": [
