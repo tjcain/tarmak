@@ -28,6 +28,10 @@ variable "{{.TFName}}_iam_additional_policy_arns" {
   default = {{.AmazonAdditionalIAMPoliciesString}}
 }
 
+variable "{{.TFName}}_zones" {
+  default = {{.ZonesString}}
+}
+
 {{ $instancePool := . -}}
 {{ range .Volumes -}}
 variable "{{$instancePool.TFName}}_{{.Name}}_volume_size" {

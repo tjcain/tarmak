@@ -121,6 +121,14 @@ func (n *InstancePool) Zones() (zones []string) {
 	return zones
 }
 
+func (n *InstancePool) ZonesString() string {
+        zones := n.Zones()
+        for zone, _ := range zones {
+                zones[zone] = fmt.Sprintf(`"%s"`, zones[zone])
+        }
+        return fmt.Sprintf("[%s]", strings.Join(zones, ","))
+}
+
 func (n *InstancePool) Name() string {
 	if n.conf.Name == "" {
 		return n.Role().Name()

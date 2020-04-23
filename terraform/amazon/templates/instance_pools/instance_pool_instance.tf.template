@@ -1,6 +1,14 @@
 {{/* vim: set ft=tf: */ -}}
 {{ $instancePool := . -}}
 
+data "aws_subnet_ids" "{{.TFName}}_selected" {
+  vpc_id = "${var.vpc_id}"
+  filter {
+    name   = "availability-zone"
+    values = ["${var.{{.TFName}}_zones}"] # insert values here
+  }
+}
+
 data "template_file" "{{.TFName}}_user_data" {
 {{- if .Role.Stateful }}
   count = "${var.{{.TFName}}_min_count}"
@@ -96,7 +104,7 @@ resource "aws_autoscaling_group" "{{.TFName}}" {
   min_size                  = "${var.{{.TFName}}_min_count}"
   health_check_grace_period = 600
   health_check_type         = "EC2"
-  vpc_zone_identifier       = ["${var.private_subnet_ids}"]
+  vpc_zone_identifier       = ["${matchkeys(data.aws_subnet_ids.{{.TFName}}_selected.ids,data.aws_subnet_ids.{{.TFName}}_selected.ids,var.private_subnet_ids)}"]
   launch_configuration      = "${aws_launch_configuration.{{.TFName}}.name}"
 {{ if or .Role.AWS.ELBAPI (or .Role.AWS.ELBIngress .Role.AWS.ELBAPIPublic) }}
   load_balancers = [
