@@ -167,6 +167,7 @@ ExecStart=<%= scope['kubernetes::_dest_dir'] %>/kubelet \
  "--tls-cipher-suites=<%= @tls_cipher_suites.join(',') %>" \
 <% end -%>
 <% end -%>
+  --enable-load-reader \
   --logtostderr=true
 
 Restart=on-failure

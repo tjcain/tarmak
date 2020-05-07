@@ -9,6 +9,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
 allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
 parameters:
   type: gp2
 <% if scope['kubernetes::storage_encrypted'] -%>
@@ -23,6 +24,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
 allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
 parameters:
   type: standard
 <% if scope['kubernetes::storage_encrypted'] -%>
@@ -37,6 +39,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
 allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
 parameters:
   type: st1
 <% if scope['kubernetes::storage_encrypted'] -%>
@@ -51,6 +54,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
 provisioner: kubernetes.io/aws-ebs
 allowVolumeExpansion: true
+volumeBindingMode: WaitForFirstConsumer
 parameters:
   type: sc1
 <% if scope['kubernetes::storage_encrypted'] -%>
