@@ -52,6 +52,20 @@ resource "aws_route53_record" "{{.Role.TFName}}_api" {
   }
 }
 
+{{ if .Role.AWS.ELBAPIPrivateRecord -}}
+resource "aws_route53_record" "{{.Role.TFName}}_api_private" {
+  zone_id = "${var.public_zone_id}"
+  name    = "api-internal.${data.template_file.stack_name.rendered}"
+  type    = "A"
+
+  alias {
+    name                   = "${aws_elb.{{.Role.TFName}}.dns_name}"
+    zone_id                = "${data.aws_elb_hosted_zone_id.main.id}"
+    evaluate_target_health = true
+  }
+}
+{{ end -}}
+
 {{ if .Role.AWS.ELBAPIPublic -}}
 resource "aws_elb" "{{.Role.TFName}}_public" {
   name         = "${format("%.19s-api-pub", data.template_file.stack_name.rendered)}"

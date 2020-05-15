@@ -187,13 +187,14 @@ module "kubernetes" {
   {{.TFName}}_root_volume_type = "${var.{{.TFName}}_root_volume_type}"
 {{ end -}}
 {{- end }}
-  api_admin_cidrs       = "${var.api_admin_cidrs}"
-  secrets_bucket        = "${module.state.secrets_bucket[0]}"
-  private_subnet_ids    = ["${module.network.private_subnet_ids}"]
-  public_subnet_ids     = ["${module.network.public_subnet_ids}"]
-  internal_fqdns        = ["${module.vault.instance_fqdns}"]
-  vault_kms_key_id      = "${module.vault.vault_kms_key_id}"
-  vault_unseal_key_name = "${module.vault.vault_unseal_key_name}"
+  api_admin_cidrs         = "${var.api_admin_cidrs}"
+  api_private_admin_cidrs = "${var.api_private_admin_cidrs}"
+  secrets_bucket          = "${module.state.secrets_bucket[0]}"
+  private_subnet_ids      = ["${module.network.private_subnet_ids}"]
+  public_subnet_ids       = ["${module.network.public_subnet_ids}"]
+  internal_fqdns          = ["${module.vault.instance_fqdns}"]
+  vault_kms_key_id        = "${module.vault.vault_kms_key_id}"
+  vault_unseal_key_name   = "${module.vault.vault_unseal_key_name}"
 
   # template variables
   availability_zones        = ["${module.network.availability_zones}"]

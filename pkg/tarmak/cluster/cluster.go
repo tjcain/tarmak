@@ -75,6 +75,10 @@ func NewFromConfig(environment interfaces.Environment, conf *clusterv1alpha1.Clu
 		if apiServer := k.APIServer; apiServer != nil {
 			if master := cluster.Role("master"); master != nil {
 
+                                if apiServer.PrivateRecord == true {
+                                        master.AWS.ELBAPIPrivateRecord = true
+                                }
+
 				if apiServer.Public == true {
 					master.AWS.ELBAPIPublic = true
 					if a := apiServer.Amazon; a != nil && a.PublicELBAccessLogs != nil {
@@ -539,9 +543,16 @@ func (c *Cluster) validateAPIServer() (result error) {
 	for _, cidr := range c.Config().Kubernetes.APIServer.AllowCIDRs {
 		_, _, err := net.ParseCIDR(cidr)
 		if err != nil {
-			result = multierror.Append(result, fmt.Errorf("%s is not a valid CIDR format", cidr))
+			result = multierror.Append(result, fmt.Errorf("%s is not a valid CIDR format in AllowCIDRs", cidr))
 		}
 	}
+
+        for _, cidr := range c.Config().Kubernetes.APIServer.PrivateAllowCIDRs {
+                _, _, err := net.ParseCIDR(cidr)
+                if err != nil {
+                        result = multierror.Append(result, fmt.Errorf("%s is not a valid CIDR format in PrivateAllowCIDRs", cidr))
+                }
+        }
 
 	api := c.Config().Kubernetes.APIServer
 	if a := api.Amazon; a != nil {
@@ -791,6 +802,9 @@ func (c *Cluster) Variables() map[string]interface{} {
 		} else {
 			output[fmt.Sprintf("%s_admin_cidrs", instancePool.TFName())] = c.environment.Config().AdminCIDRs
 		}
+                if instancePool.Config().PrivateAllowCIDRs != nil {
+                        output[fmt.Sprintf("%s_private_admin_cidrs", instancePool.TFName())] = instancePool.Config().PrivateAllowCIDRs
+                }
 		output[fmt.Sprintf("%s_min_instance_count", instancePool.TFName())] = instancePool.Config().MinCount
 		output[fmt.Sprintf("%s_max_instance_count", instancePool.TFName())] = instancePool.Config().MaxCount
 		output[fmt.Sprintf("%s_root_volume_size", instancePool.TFName())] = instancePool.RootVolume().Size()
@@ -835,6 +849,12 @@ func (c *Cluster) Variables() map[string]interface{} {
 		} else {
 			output["api_admin_cidrs"] = c.environment.Config().AdminCIDRs
 		}
+                if apiServer := k.APIServer; apiServer != nil && apiServer.PrivateAllowCIDRs != nil {
+                        output["api_private_admin_cidrs"] = apiServer.PrivateAllowCIDRs
+                } else {
+                        output["api_private_admin_cidrs"] = []string{}
+                }
+               
 	} else {
 		output["api_admin_cidrs"] = c.environment.Config().AdminCIDRs
 	}
@@ -916,6 +936,20 @@ func (c *Cluster) PublicAPIHostname() string {
 		c.Name(),
 		c.Environment().Provider().PublicZone(),
 	)
+}
+
+// get API server private hostname
+func (c *Cluster) PrivateAPIHostname() string {
+        if c.conf.Kubernetes == nil || c.conf.Kubernetes.APIServer == nil || c.conf.Kubernetes.APIServer.PrivateRecord == false {
+                return ""
+        }
+
+        return fmt.Sprintf(
+                "api-internal.%s-%s.%s",
+                c.Environment().Name(),
+                c.Name(),
+                c.Environment().Provider().PublicZone(),
+        )
 }
 
 // retrieve Amazons EBS encryption status

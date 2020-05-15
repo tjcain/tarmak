@@ -146,6 +146,10 @@ type ClusterKubernetesAPIServer struct {
 	Public     bool     `json:"public,omitempty"`
 	AllowCIDRs []string `json:"allowCIDRs,omitempty"`
 
+        // create DNS record for the private load balancer, and optionally lock it down
+        PrivateRecord     bool     `json:"privateRecord,omitempty"`
+        PrivateAllowCIDRs []string `json:"privateAllowCIDRs,omitempty"`
+
 	EnableAdmissionControllers  []string `json:"enableAdmissionControllers,omitempty"`
 	DisableAdmissionControllers []string `json:"disableAdmissionControllers,omitempty"`
 

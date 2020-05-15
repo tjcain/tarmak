@@ -402,14 +402,20 @@ func kubernetesInstancePoolConfig(conf *clusterv1alpha1.InstancePoolKubernetes, 
 func (p *Puppet) contentClusterConfig(cluster interfaces.Cluster) ([]string, error) {
 
 	hieraData := &hieraData{}
+        sans := []string{}
 	if publicAPIHostname := cluster.PublicAPIHostname(); publicAPIHostname != "" {
-		sans := []string{publicAPIHostname}
-		sansJSON, err := json.Marshal(&sans)
-		if err != nil {
-			panic(err)
-		}
-		hieraData.variables = append(hieraData.variables, fmt.Sprintf("tarmak::master::apiserver_additional_san_domains: %s", string(sansJSON)))
-	}
+		sans = []string{publicAPIHostname}
+        }
+        if privateAPIHostname := cluster.PrivateAPIHostname(); privateAPIHostname != "" {
+                sans = append(sans, []string{privateAPIHostname}...)
+        }
+        if len(sans) > 0 {
+                sansJSON, err := json.Marshal(&sans)
+                if err != nil {
+                        panic(err)
+                }
+                hieraData.variables = append(hieraData.variables, fmt.Sprintf("tarmak::master::apiserver_additional_san_domains: %s", string(sansJSON)))
+        }
 	kubernetesClusterConfig(cluster.Config().Kubernetes, hieraData)
         amazonClusterConfig(cluster.Config().Amazon, hieraData)
 

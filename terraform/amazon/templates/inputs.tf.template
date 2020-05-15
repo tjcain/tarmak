@@ -175,6 +175,10 @@ variable "api_admin_cidrs" {
   type = "list"
 }
 
+variable "api_private_admin_cidrs" {
+  type = "list"
+}
+
 variable "tools_cluster_name" {
   default = "hub"
 }

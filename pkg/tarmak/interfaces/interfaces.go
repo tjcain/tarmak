@@ -64,8 +64,9 @@ type Cluster interface {
 	// get the terrform output for this cluster
 	TerraformOutput() (map[string]interface{}, error)
 
-	// return public api hostname
+	// return api hostnames
 	PublicAPIHostname() string
+        PrivateAPIHostname() string
 
 	// cluster uses encrypted EBS
 	AmazonEBSEncrypted() bool

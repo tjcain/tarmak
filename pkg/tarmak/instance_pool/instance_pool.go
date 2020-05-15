@@ -219,6 +219,13 @@ func (n *InstancePool) ValidateAllowCIDRs() (result error) {
 		}
 	}
 
+        for _, cidr := range n.Config().PrivateAllowCIDRs {
+                _, _, err := net.ParseCIDR(cidr)
+                if err != nil {
+                        result = multierror.Append(result, fmt.Errorf("%s is not a valid CIDR format", cidr))
+                }
+        }
+
 	return result
 }
 
