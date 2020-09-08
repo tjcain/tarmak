@@ -14,7 +14,7 @@ import (
 	"github.com/hashicorp/errwrap"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/terraform/helper/slowmessage"
-	"github.com/hashicorp/terraform/state"
+	"github.com/hashicorp/terraform/states/statemgr"
 	"github.com/mitchellh/cli"
 	"github.com/mitchellh/colorstring"
 )
@@ -50,18 +50,18 @@ that no one else is holding a lock.
 `
 )
 
-// Locker allows for more convenient usage of the lower-level state.Locker
+// Locker allows for more convenient usage of the lower-level statemgr.Locker
 // implementations.
-// The state.Locker API requires passing in a state.LockInfo struct. Locker
+// The statemgr.Locker API requires passing in a statemgr.LockInfo struct. Locker
 // implementations are expected to create the required LockInfo struct when
 // Lock is called, populate the Operation field with the "reason" string
-// provided, and pass that on to the underlying state.Locker.
+// provided, and pass that on to the underlying statemgr.Locker.
 // Locker implementations are also expected to store any state required to call
 // Unlock, which is at a minimum the LockID string returned by the
-// state.Locker.
+// statemgr.Locker.
 type Locker interface {
-	// Lock the provided state, storing the reason string in the LockInfo.
-	Lock(s state.State, reason string) error
+	// Lock the provided state manager, storing the reason string in the LockInfo.
+	Lock(s statemgr.Locker, reason string) error
 	// Unlock the previously locked state.
 	// An optional error can be passed in, and will be combined with any error
 	// from the Unlock operation.
@@ -72,7 +72,7 @@ type locker struct {
 	mu      sync.Mutex
 	ctx     context.Context
 	timeout time.Duration
-	state   state.State
+	state   statemgr.Locker
 	ui      cli.Ui
 	color   *colorstring.Colorize
 	lockID  string
@@ -100,7 +100,7 @@ func NewLocker(
 // Locker locks the given state and outputs to the user if locking is taking
 // longer than the threshold. The lock is retried until the context is
 // cancelled.
-func (l *locker) Lock(s state.State, reason string) error {
+func (l *locker) Lock(s statemgr.Locker, reason string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -109,11 +109,11 @@ func (l *locker) Lock(s state.State, reason string) error {
 	ctx, cancel := context.WithTimeout(l.ctx, l.timeout)
 	defer cancel()
 
-	lockInfo := state.NewLockInfo()
+	lockInfo := statemgr.NewLockInfo()
 	lockInfo.Operation = reason
 
 	err := slowmessage.Do(LockThreshold, func() error {
-		id, err := state.LockWithContext(ctx, s, lockInfo)
+		id, err := statemgr.LockWithContext(ctx, s, lockInfo)
 		l.lockID = id
 		return err
 	}, func() {
@@ -165,7 +165,7 @@ func NewNoopLocker() Locker {
 	return noopLocker{}
 }
 
-func (l noopLocker) Lock(state.State, string) error {
+func (l noopLocker) Lock(statemgr.Locker, string) error {
 	return nil
 }
 

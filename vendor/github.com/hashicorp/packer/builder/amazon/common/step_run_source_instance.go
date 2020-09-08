@@ -6,47 +6,47 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
 
-	retry "github.com/hashicorp/packer/common"
+	"github.com/hashicorp/packer/common/retry"
+	"github.com/hashicorp/packer/helper/communicator"
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
 )
 
 type StepRunSourceInstance struct {
+	PollingConfig                     *AWSPollingConfig
 	AssociatePublicIpAddress          bool
-	AvailabilityZone                  string
-	BlockDevices                      BlockDevices
+	LaunchMappings                    EC2BlockDeviceMappingsBuilder
+	Comm                              *communicator.Config
 	Ctx                               interpolate.Context
 	Debug                             bool
 	EbsOptimized                      bool
 	EnableT2Unlimited                 bool
 	ExpectedRootDevice                string
-	IamInstanceProfile                string
 	InstanceInitiatedShutdownBehavior string
 	InstanceType                      string
 	IsRestricted                      bool
 	SourceAMI                         string
-	SubnetId                          string
-	Tags                              TagMap
+	Tags                              map[string]string
 	UserData                          string
 	UserDataFile                      string
-	VolumeTags                        TagMap
+	VolumeTags                        map[string]string
+	NoEphemeral                       bool
 
 	instanceId string
 }
 
 func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
-	var keyName string
-	if name, ok := state.GetOk("keyPair"); ok {
-		keyName = name.(string)
-	}
+
 	securityGroupIds := aws.StringSlice(state.Get("securityGroupIds").([]string))
+	iamInstanceProfile := aws.String(state.Get("iamInstanceProfile").(string))
+
 	ui := state.Get("ui").(packer.Ui)
 
 	userData := s.UserData
@@ -89,7 +89,7 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		s.Tags["Name"] = "Packer Builder"
 	}
 
-	ec2Tags, err := s.Tags.EC2Tags(s.Ctx, *ec2conn.Config.Region, state)
+	ec2Tags, err := TagMap(s.Tags).EC2Tags(s.Ctx, *ec2conn.Config.Region, state)
 	if err != nil {
 		err := fmt.Errorf("Error tagging source instance: %s", err)
 		state.Put("error", err)
@@ -97,7 +97,7 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		return multistep.ActionHalt
 	}
 
-	volTags, err := s.VolumeTags.EC2Tags(s.Ctx, *ec2conn.Config.Region, state)
+	volTags, err := TagMap(s.VolumeTags).EC2Tags(s.Ctx, *ec2conn.Config.Region, state)
 	if err != nil {
 		err := fmt.Errorf("Error tagging volumes: %s", err)
 		state.Put("error", err)
@@ -105,16 +105,36 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		return multistep.ActionHalt
 	}
 
+	az := state.Get("availability_zone").(string)
 	runOpts := &ec2.RunInstancesInput{
 		ImageId:             &s.SourceAMI,
 		InstanceType:        &s.InstanceType,
 		UserData:            &userData,
 		MaxCount:            aws.Int64(1),
 		MinCount:            aws.Int64(1),
-		IamInstanceProfile:  &ec2.IamInstanceProfileSpecification{Name: &s.IamInstanceProfile},
-		BlockDeviceMappings: s.BlockDevices.BuildLaunchDevices(),
-		Placement:           &ec2.Placement{AvailabilityZone: &s.AvailabilityZone},
+		IamInstanceProfile:  &ec2.IamInstanceProfileSpecification{Name: iamInstanceProfile},
+		BlockDeviceMappings: s.LaunchMappings.BuildEC2BlockDeviceMappings(),
+		Placement:           &ec2.Placement{AvailabilityZone: &az},
 		EbsOptimized:        &s.EbsOptimized,
+	}
+
+	if s.NoEphemeral {
+		// This is only relevant for windows guests. Ephemeral drives by
+		// default are assigned to drive names xvdca-xvdcz.
+		// When vms are launched from the AWS console, they're automatically
+		// removed from the block devices if the user hasn't said to use them,
+		// but the SDK does not perform this cleanup. The following code just
+		// manually removes the ephemeral drives from the mapping so that they
+		// don't clutter up console views and cause confusion.
+		log.Printf("no_ephemeral was set, so creating drives xvdca-xvdcz as empty mappings")
+		DefaultEphemeralDeviceLetters := "abcdefghijklmnopqrstuvwxyz"
+		for _, letter := range DefaultEphemeralDeviceLetters {
+			bd := &ec2.BlockDeviceMapping{
+				DeviceName: aws.String("xvdc" + string(letter)),
+				NoDevice:   aws.String(""),
+			}
+			runOpts.BlockDeviceMappings = append(runOpts.BlockDeviceMappings, bd)
+		}
 	}
 
 	if s.EnableT2Unlimited {
@@ -150,22 +170,24 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		volTags.Report(ui)
 	}
 
-	if keyName != "" {
-		runOpts.KeyName = &keyName
+	if s.Comm.SSHKeyPairName != "" {
+		runOpts.KeyName = &s.Comm.SSHKeyPairName
 	}
 
-	if s.SubnetId != "" && s.AssociatePublicIpAddress {
+	subnetId := state.Get("subnet_id").(string)
+
+	if subnetId != "" && s.AssociatePublicIpAddress {
 		runOpts.NetworkInterfaces = []*ec2.InstanceNetworkInterfaceSpecification{
 			{
 				DeviceIndex:              aws.Int64(0),
 				AssociatePublicIpAddress: &s.AssociatePublicIpAddress,
-				SubnetId:                 &s.SubnetId,
+				SubnetId:                 aws.String(subnetId),
 				Groups:                   securityGroupIds,
 				DeleteOnTermination:      aws.Bool(true),
 			},
 		}
 	} else {
-		runOpts.SubnetId = &s.SubnetId
+		runOpts.SubnetId = aws.String(subnetId)
 		runOpts.SecurityGroupIds = securityGroupIds
 	}
 
@@ -173,7 +195,28 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 		runOpts.InstanceInitiatedShutdownBehavior = &s.InstanceInitiatedShutdownBehavior
 	}
 
-	runResp, err := ec2conn.RunInstances(runOpts)
+	var runResp *ec2.Reservation
+	err = retry.Config{
+		Tries: 11,
+		ShouldRetry: func(err error) bool {
+			if IsAWSErr(err, "InvalidParameterValue", "iamInstanceProfile") {
+				return true
+			}
+			return false
+		},
+		RetryDelay: (&retry.Backoff{InitialBackoff: 200 * time.Millisecond, MaxBackoff: 30 * time.Second, Multiplier: 2}).Linear,
+	}.Run(ctx, func(ctx context.Context) error {
+		runResp, err = ec2conn.RunInstances(runOpts)
+		return err
+	})
+
+	if IsAWSErr(err, "VPCIdNotSpecified", "No default VPC for this user") && subnetId == "" {
+		err := fmt.Errorf("Error launching source instance: a valid Subnet Id was not specified")
+		state.Put("error", err)
+		ui.Error(err.Error())
+		return multistep.ActionHalt
+	}
+
 	if err != nil {
 		err := fmt.Errorf("Error launching source instance: %s", err)
 		state.Put("error", err)
@@ -191,21 +234,37 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 	describeInstance := &ec2.DescribeInstancesInput{
 		InstanceIds: []*string{aws.String(instanceId)},
 	}
-	if err := ec2conn.WaitUntilInstanceRunningWithContext(ctx, describeInstance); err != nil {
+
+	if err := s.PollingConfig.WaitUntilInstanceRunning(ctx, ec2conn, instanceId); err != nil {
 		err := fmt.Errorf("Error waiting for instance (%s) to become ready: %s", instanceId, err)
 		state.Put("error", err)
 		ui.Error(err.Error())
 		return multistep.ActionHalt
 	}
 
-	r, err := ec2conn.DescribeInstances(describeInstance)
+	// there's a race condition that can happen because of AWS's eventual
+	// consistency where even though the wait is complete, the describe call
+	// will fail. Retry a couple of times to try to mitigate that race.
 
+	var r *ec2.DescribeInstancesOutput
+	err = retry.Config{Tries: 11, ShouldRetry: func(err error) bool {
+		if IsAWSErr(err, "InvalidInstanceID.NotFound", "") {
+			return true
+		}
+		return false
+	},
+		RetryDelay: (&retry.Backoff{InitialBackoff: 200 * time.Millisecond, MaxBackoff: 30 * time.Second, Multiplier: 2}).Linear,
+	}.Run(ctx, func(ctx context.Context) error {
+		r, err = ec2conn.DescribeInstances(describeInstance)
+		return err
+	})
 	if err != nil || len(r.Reservations) == 0 || len(r.Reservations[0].Instances) == 0 {
 		err := fmt.Errorf("Error finding source instance.")
 		state.Put("error", err)
 		ui.Error(err.Error())
 		return multistep.ActionHalt
 	}
+
 	instance := r.Reservations[0].Instances[0]
 
 	if s.Debug {
@@ -223,6 +282,9 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 	}
 
 	state.Put("instance", instance)
+	// instance_id is the generic term used so that users can have access to the
+	// instance id inside of the provisioners, used in step_provision.
+	state.Put("instance_id", instance.InstanceId)
 
 	// If we're in a region that doesn't support tagging on instance creation,
 	// do that now.
@@ -230,20 +292,19 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 	if s.IsRestricted {
 		ec2Tags.Report(ui)
 		// Retry creating tags for about 2.5 minutes
-		err = retry.Retry(0.2, 30, 11, func(_ uint) (bool, error) {
+		err = retry.Config{Tries: 11, ShouldRetry: func(error) bool {
+			if IsAWSErr(err, "InvalidInstanceID.NotFound", "") {
+				return true
+			}
+			return false
+		},
+			RetryDelay: (&retry.Backoff{InitialBackoff: 200 * time.Millisecond, MaxBackoff: 30 * time.Second, Multiplier: 2}).Linear,
+		}.Run(ctx, func(ctx context.Context) error {
 			_, err := ec2conn.CreateTags(&ec2.CreateTagsInput{
 				Tags:      ec2Tags,
 				Resources: []*string{instance.InstanceId},
 			})
-			if err == nil {
-				return true, nil
-			}
-			if awsErr, ok := err.(awserr.Error); ok {
-				if awsErr.Code() == "InvalidInstanceID.NotFound" {
-					return false, nil
-				}
-			}
-			return true, err
+			return err
 		})
 
 		if err != nil {
@@ -262,10 +323,10 @@ func (s *StepRunSourceInstance) Run(ctx context.Context, state multistep.StateBa
 			}
 		}
 
-		if len(volumeIds) > 0 && s.VolumeTags.IsSet() {
+		if len(volumeIds) > 0 && len(s.VolumeTags) > 0 {
 			ui.Say("Adding tags to source EBS Volumes")
 
-			volumeTags, err := s.VolumeTags.EC2Tags(s.Ctx, *ec2conn.Config.Region, state)
+			volumeTags, err := TagMap(s.VolumeTags).EC2Tags(s.Ctx, *ec2conn.Config.Region, state)
 			if err != nil {
 				err := fmt.Errorf("Error tagging source EBS Volumes on %s: %s", *instance.InstanceId, err)
 				state.Put("error", err)
@@ -304,7 +365,7 @@ func (s *StepRunSourceInstance) Cleanup(state multistep.StateBag) {
 			return
 		}
 
-		if err := WaitUntilInstanceTerminated(aws.BackgroundContext(), ec2conn, s.instanceId); err != nil {
+		if err := s.PollingConfig.WaitUntilInstanceTerminated(aws.BackgroundContext(), ec2conn, s.instanceId); err != nil {
 			ui.Error(err.Error())
 		}
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/hashicorp/packer/builder"
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	"github.com/hashicorp/packer/template/interpolate"
@@ -20,9 +21,11 @@ type StepModifyAMIAttributes struct {
 	ProductCodes   []string
 	Description    string
 	Ctx            interpolate.Context
+
+	GeneratedData *builder.GeneratedData
 }
 
-func (s *StepModifyAMIAttributes) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
+func (s *StepModifyAMIAttributes) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ec2conn := state.Get("ec2").(*ec2.EC2)
 	session := state.Get("awsSession").(*session.Session)
 	ui := state.Get("ui").(packer.Ui)
@@ -43,7 +46,7 @@ func (s *StepModifyAMIAttributes) Run(_ context.Context, state multistep.StateBa
 	}
 
 	var err error
-	s.Ctx.Data = extractBuildInfo(*ec2conn.Config.Region, state)
+	s.Ctx.Data = extractBuildInfo(*ec2conn.Config.Region, state, s.GeneratedData)
 	s.Description, err = interpolate.Render(s.Description, &s.Ctx)
 	if err != nil {
 		err = fmt.Errorf("Error interpolating AMI description: %s", err)

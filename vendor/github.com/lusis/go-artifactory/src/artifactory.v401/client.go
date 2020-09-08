@@ -8,14 +8,12 @@ import (
 )
 
 type ClientConfig struct {
-	BaseURL    string
-	Username   string
-	Password   string
-	Token      string
-	AuthMethod string
-	VerifySSL  bool
-	Client     *http.Client
-	Transport  *http.Transport
+	BaseURL   string
+	Username  string
+	Password  string
+	VerifySSL bool
+	Client    *http.Client
+	Transport *http.Transport
 }
 
 type ArtifactoryClient struct {
@@ -44,31 +42,17 @@ func NewClient(config *ClientConfig) (c ArtifactoryClient) {
 }
 
 func clientConfigFrom(from string) (c *ClientConfig) {
-	conf := ClientConfig{}
 	switch from {
 	case "environment":
-		if os.Getenv("ARTIFACTORY_URL") == "" {
-			fmt.Printf("You must set the environment variable ARTIFACTORY_URL")
+		if os.Getenv("ARTIFACTORY_URL") == "" || os.Getenv("ARTIFACTORY_USERNAME") == "" || os.Getenv("ARTIFACTORY_PASSWORD") == "" {
+			fmt.Printf("You must set the environment variables ARTIFACTORY_URL/ARTIFACTORY_USERNAME/ARTIFACTORY_PASSWORD\n")
 			os.Exit(1)
-		} else {
-			conf.BaseURL = os.Getenv("ARTIFACTORY_URL")
-		}
-		if os.Getenv("ARTIFACTORY_TOKEN") == "" {
-			if os.Getenv("ARTIFACTORY_USERNAME") == "" || os.Getenv("ARTIFACTORY_PASSWORD") == "" {
-				fmt.Printf("You must set the environment variables ARTIFACTORY_USERNAME/ARTIFACTORY_PASSWORD\n")
-				os.Exit(1)
-			} else {
-				conf.AuthMethod = "basic"
-			}
-		} else {
-			conf.AuthMethod = "token"
 		}
 	}
-	if conf.AuthMethod == "token" {
-		conf.Token = os.Getenv("ARTIFACTORY_TOKEN")
-	} else {
-		conf.Username = os.Getenv("ARTIFACTORY_USERNAME")
-		conf.Password = os.Getenv("ARTIFACTORY_PASSWORD")
+	conf := ClientConfig{
+		BaseURL:  os.Getenv("ARTIFACTORY_URL"),
+		Username: os.Getenv("ARTIFACTORY_USERNAME"),
+		Password: os.Getenv("ARTIFACTORY_PASSWORD"),
 	}
 	return &conf
 }

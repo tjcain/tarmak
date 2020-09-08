@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -18,11 +17,23 @@ func newRunner(steps []multistep.Step, config PackerConfig, ui packer.Ui) (multi
 	case "", "cleanup":
 	case "abort":
 		for i, step := range steps {
-			steps[i] = abortStep{step, ui}
+			steps[i] = abortStep{
+				step:        step,
+				cleanupProv: false,
+				ui:          ui,
+			}
 		}
 	case "ask":
 		for i, step := range steps {
 			steps[i] = askStep{step, ui}
+		}
+	case "run-cleanup-provisioner":
+		for i, step := range steps {
+			steps[i] = abortStep{
+				step:        step,
+				cleanupProv: true,
+				ui:          ui,
+			}
 		}
 	}
 
@@ -58,8 +69,9 @@ func typeName(i interface{}) string {
 }
 
 type abortStep struct {
-	step multistep.Step
-	ui   packer.Ui
+	step        multistep.Step
+	cleanupProv bool
+	ui          packer.Ui
 }
 
 func (s abortStep) InnerStepName() string {
@@ -71,17 +83,14 @@ func (s abortStep) Run(ctx context.Context, state multistep.StateBag) multistep.
 }
 
 func (s abortStep) Cleanup(state multistep.StateBag) {
-	err, ok := state.GetOk("error")
-	if ok {
-		s.ui.Error(fmt.Sprintf("%s", err))
+	if s.InnerStepName() == typeName(StepProvision{}) && s.cleanupProv {
+		s.step.Cleanup(state)
+		return
 	}
-	if _, ok := state.GetOk(multistep.StateCancelled); ok {
-		s.ui.Error("Interrupted, aborting...")
-		os.Exit(1)
-	}
-	if _, ok := state.GetOk(multistep.StateHalted); ok {
-		s.ui.Error(fmt.Sprintf("Step %q failed, aborting...", typeName(s.step)))
-		os.Exit(1)
+
+	shouldCleanup := handleAbortsAndInterupts(state, s.ui, typeName(s.step))
+	if !shouldCleanup {
+		return
 	}
 	s.step.Cleanup(state)
 }
@@ -112,7 +121,8 @@ func (s askStep) Run(ctx context.Context, state multistep.StateBag) (action mult
 		case askCleanup:
 			return
 		case askAbort:
-			os.Exit(1)
+			state.Put("aborted", true)
+			return
 		case askRetry:
 			continue
 		}
@@ -120,6 +130,12 @@ func (s askStep) Run(ctx context.Context, state multistep.StateBag) (action mult
 }
 
 func (s askStep) Cleanup(state multistep.StateBag) {
+	if _, ok := state.GetOk("aborted"); ok {
+		shouldCleanup := handleAbortsAndInterupts(state, s.ui, typeName(s.step))
+		if !shouldCleanup {
+			return
+		}
+	}
 	s.step.Cleanup(state)
 }
 
@@ -169,4 +185,34 @@ func askPrompt(ui packer.Ui) askResponse {
 		}
 		ui.Say(fmt.Sprintf("Incorrect input: %#v", line))
 	}
+}
+
+func handleAbortsAndInterupts(state multistep.StateBag, ui packer.Ui, stepName string) bool {
+	// if returns false, don't run cleanup. If true, do run cleanup.
+	_, alreadyLogged := state.GetOk("abort_step_logged")
+
+	err, ok := state.GetOk("error")
+	if ok && !alreadyLogged {
+		ui.Error(fmt.Sprintf("%s", err))
+		state.Put("abort_step_logged", true)
+	}
+	if _, ok := state.GetOk(multistep.StateCancelled); ok {
+		if !alreadyLogged {
+			ui.Error("Interrupted, aborting...")
+			state.Put("abort_step_logged", true)
+		} else {
+			ui.Error(fmt.Sprintf("aborted: skipping cleanup of step %q", stepName))
+		}
+		return false
+	}
+	if _, ok := state.GetOk(multistep.StateHalted); ok {
+		if !alreadyLogged {
+			ui.Error(fmt.Sprintf("Step %q failed, aborting...", stepName))
+			state.Put("abort_step_logged", true)
+		} else {
+			ui.Error(fmt.Sprintf("aborted: skipping cleanup of step %q", stepName))
+		}
+		return false
+	}
+	return true
 }

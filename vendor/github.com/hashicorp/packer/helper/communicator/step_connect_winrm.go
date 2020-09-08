@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/hashicorp/packer/helper/multistep"
 	"github.com/hashicorp/packer/packer"
 	winrmcmd "github.com/masterzen/winrm"
+	"golang.org/x/net/http/httpproxy"
 )
 
 // StepConnectWinRM is a multistep Step implementation that waits for WinRM
@@ -33,23 +37,23 @@ type StepConnectWinRM struct {
 	WinRMPort   func(multistep.StateBag) (int, error)
 }
 
-func (s *StepConnectWinRM) Run(_ context.Context, state multistep.StateBag) multistep.StepAction {
+func (s *StepConnectWinRM) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	ui := state.Get("ui").(packer.Ui)
 
 	var comm packer.Communicator
 	var err error
 
-	cancel := make(chan struct{})
+	subCtx, cancel := context.WithCancel(ctx)
 	waitDone := make(chan bool, 1)
 	go func() {
 		ui.Say("Waiting for WinRM to become available...")
-		comm, err = s.waitForWinRM(state, cancel)
+		comm, err = s.waitForWinRM(state, subCtx)
+		cancel() // just to make 'possible context leak' analysis happy
 		waitDone <- true
 	}()
 
 	log.Printf("Waiting for WinRM, up to timeout: %s", s.Config.WinRMTimeout)
 	timeout := time.After(s.Config.WinRMTimeout)
-WaitLoop:
 	for {
 		// Wait for either WinRM to become available, a timeout to occur,
 		// or an interrupt to come through.
@@ -62,45 +66,48 @@ WaitLoop:
 
 			ui.Say("Connected to WinRM!")
 			state.Put("communicator", comm)
-			break WaitLoop
+			return multistep.ActionContinue
 		case <-timeout:
 			err := fmt.Errorf("Timeout waiting for WinRM.")
 			state.Put("error", err)
 			ui.Error(err.Error())
-			close(cancel)
+			cancel()
+			return multistep.ActionHalt
+		case <-ctx.Done():
+			// The step sequence was cancelled, so cancel waiting for WinRM
+			// and just start the halting process.
+			cancel()
+			log.Println("Interrupt detected, quitting waiting for WinRM.")
 			return multistep.ActionHalt
 		case <-time.After(1 * time.Second):
-			if _, ok := state.GetOk(multistep.StateCancelled); ok {
-				// The step sequence was cancelled, so cancel waiting for WinRM
-				// and just start the halting process.
-				close(cancel)
-				log.Println("Interrupt detected, quitting waiting for WinRM.")
-				return multistep.ActionHalt
-			}
 		}
 	}
-
-	return multistep.ActionContinue
 }
 
 func (s *StepConnectWinRM) Cleanup(multistep.StateBag) {
 }
 
-func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan struct{}) (packer.Communicator, error) {
+func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, ctx context.Context) (packer.Communicator, error) {
 	var comm packer.Communicator
+	first := true
 	for {
-		select {
-		case <-cancel:
-			log.Println("[INFO] WinRM wait cancelled. Exiting loop.")
-			return nil, errors.New("WinRM wait cancelled")
-		case <-time.After(5 * time.Second):
+		// Don't check for cancel or wait on first iteration
+		if !first {
+			select {
+			case <-ctx.Done():
+				log.Println("[INFO] WinRM wait cancelled. Exiting loop.")
+				return nil, errors.New("WinRM wait cancelled")
+			case <-time.After(5 * time.Second):
+			}
 		}
+		first = false
 
 		host, err := s.Host(state)
 		if err != nil {
 			log.Printf("[DEBUG] Error getting WinRM host: %s", err)
 			continue
 		}
+		s.Config.WinRMHost = host
 
 		port := s.Config.WinRMPort
 		if s.WinRMPort != nil {
@@ -109,7 +116,10 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 				log.Printf("[DEBUG] Error getting WinRM port: %s", err)
 				continue
 			}
+			s.Config.WinRMPort = port
 		}
+
+		state.Put("communicator_config", s.Config)
 
 		user := s.Config.WinRMUser
 		password := s.Config.WinRMPassword
@@ -125,7 +135,15 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 			}
 			if config.Password != "" {
 				password = config.Password
+				s.Config.WinRMPassword = password
 			}
+		}
+
+		if s.Config.WinRMNoProxy {
+			if err := setNoProxy(host, port); err != nil {
+				return nil, fmt.Errorf("Error setting no_proxy: %s", err)
+			}
+			s.Config.WinRMTransportDecorator = ProxyTransportDecorator
 		}
 
 		log.Println("[INFO] Attempting WinRM connection...")
@@ -156,7 +174,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 		cmd.Stdout = &buf
 		cmd.Stdout = io.MultiWriter(cmd.Stdout, &buf2)
 		select {
-		case <-cancel:
+		case <-ctx.Done():
 			log.Println("WinRM wait canceled, exiting loop")
 			return comm, fmt.Errorf("WinRM wait canceled")
 		case <-time.After(retryableSleep):
@@ -164,7 +182,7 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 
 		log.Printf("Checking that WinRM is connected with: '%s'", connectCheckCommand)
 		ui := state.Get("ui").(packer.Ui)
-		err := cmd.StartWithUi(comm, ui)
+		err := cmd.RunWithUi(ctx, comm, ui)
 
 		if err != nil {
 			log.Printf("Communication connection err: %s", err)
@@ -181,4 +199,41 @@ func (s *StepConnectWinRM) waitForWinRM(state multistep.StateBag, cancel <-chan 
 	}
 
 	return comm, nil
+}
+
+// setNoProxy configures the $NO_PROXY env var
+func setNoProxy(host string, port int) error {
+	current := os.Getenv("NO_PROXY")
+	p := fmt.Sprintf("%s:%d", host, port)
+	if current == "" {
+		return os.Setenv("NO_PROXY", p)
+	}
+	if !strings.Contains(current, p) {
+		return os.Setenv("NO_PROXY", strings.Join([]string{current, p}, ","))
+	}
+	return nil
+}
+
+// The net/http ProxyFromEnvironment only loads the environment once, when the
+// code is initialized rather than when it's executed. This means that if your
+// wrapping code sets the NO_PROXY env var (as Packer does!), it will be
+// ignored. Re-loading the environment vars is more expensive, but it is the
+// easiest way to work around this limitation.
+func RefreshProxyFromEnvironment(req *http.Request) (*url.URL, error) {
+	return envProxyFunc()(req.URL)
+}
+
+func envProxyFunc() func(*url.URL) (*url.URL, error) {
+	envProxyFuncValue := httpproxy.FromEnvironment().ProxyFunc()
+	return envProxyFuncValue
+}
+
+// ProxyTransportDecorator is a custom Transporter that reloads HTTP Proxy settings at client runtime.
+// The net/http ProxyFromEnvironment only loads the environment once, when the
+// code is initialized rather than when it's executed. This means that if your
+// wrapping code sets the NO_PROXY env var (as Packer does!), it will be
+// ignored. Re-loading the environment vars is more expensive, but it is the
+// easiest way to work around this limitation.
+func ProxyTransportDecorator() winrmcmd.Transporter {
+	return winrmcmd.NewClientWithProxyFunc(RefreshProxyFromEnvironment)
 }

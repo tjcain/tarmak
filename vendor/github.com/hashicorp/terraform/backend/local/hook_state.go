@@ -3,31 +3,31 @@ package local
 import (
 	"sync"
 
-	"github.com/hashicorp/terraform/state"
+	"github.com/hashicorp/terraform/states"
+	"github.com/hashicorp/terraform/states/statemgr"
 	"github.com/hashicorp/terraform/terraform"
 )
 
 // StateHook is a hook that continuously updates the state by calling
-// WriteState on a state.State.
+// WriteState on a statemgr.Full.
 type StateHook struct {
 	terraform.NilHook
 	sync.Mutex
 
-	State state.State
+	StateMgr statemgr.Writer
 }
 
-func (h *StateHook) PostStateUpdate(
-	s *terraform.State) (terraform.HookAction, error) {
+var _ terraform.Hook = (*StateHook)(nil)
+
+func (h *StateHook) PostStateUpdate(new *states.State) (terraform.HookAction, error) {
 	h.Lock()
 	defer h.Unlock()
 
-	if h.State != nil {
-		// Write the new state
-		if err := h.State.WriteState(s); err != nil {
+	if h.StateMgr != nil {
+		if err := h.StateMgr.WriteState(new); err != nil {
 			return terraform.HookActionHalt, err
 		}
 	}
 
-	// Continue forth
 	return terraform.HookActionContinue, nil
 }

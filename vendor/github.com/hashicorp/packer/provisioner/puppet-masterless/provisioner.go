@@ -1,14 +1,18 @@
+//go:generate mapstructure-to-hcl2 -type Config
+
 // Package puppetmasterless implements a provisioner for Packer that executes
 // Puppet on the remote machine, configured to apply a local manifest
 // versus connecting to a Puppet master.
 package puppetmasterless
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/config"
 	"github.com/hashicorp/packer/packer"
@@ -65,6 +69,12 @@ type Config struct {
 	// The directory from which the command will be executed.
 	// Packer requires the directory to exist when running puppet.
 	WorkingDir string `mapstructure:"working_directory"`
+
+	// Instructs the communicator to run the remote script as a Windows
+	// scheduled task, effectively elevating the remote user by impersonating
+	// a logged-in user
+	ElevatedUser     string `mapstructure:"elevated_user"`
+	ElevatedPassword string `mapstructure:"elevated_password"`
 }
 
 type guestOSTypeConfig struct {
@@ -117,8 +127,10 @@ var guestOSTypeConfigs = map[string]guestOSTypeConfig{
 
 type Provisioner struct {
 	config            Config
+	communicator      packer.Communicator
 	guestOSTypeConfig guestOSTypeConfig
 	guestCommands     *provisioner.GuestCommands
+	generatedData     map[string]interface{}
 }
 
 type ExecuteTemplate struct {
@@ -134,6 +146,12 @@ type ExecuteTemplate struct {
 	Sudo             bool
 	WorkingDir       string
 }
+
+type EnvVarsTemplate struct {
+	WinRMPassword string
+}
+
+func (p *Provisioner) ConfigSpec() hcldec.ObjectSpec { return p.config.FlatMapstructure().HCL2Spec() }
 
 func (p *Provisioner) Prepare(raws ...interface{}) error {
 	err := config.Decode(&p.config, &config.DecodeOpts{
@@ -238,8 +256,10 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	return nil
 }
 
-func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
+func (p *Provisioner) Provision(ctx context.Context, ui packer.Ui, comm packer.Communicator, generatedData map[string]interface{}) error {
 	ui.Say("Provisioning with Puppet...")
+	p.communicator = comm
+	p.generatedData = generatedData
 	ui.Message("Creating Puppet staging directory...")
 	if err := p.createDir(ui, comm, p.config.StagingDir); err != nil {
 		return fmt.Errorf("Error creating staging directory: %s", err)
@@ -316,17 +336,24 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 		return err
 	}
 
+	if p.config.ElevatedUser != "" {
+		command, err = provisioner.GenerateElevatedRunner(command, p)
+		if err != nil {
+			return err
+		}
+	}
+
 	cmd := &packer.RemoteCmd{
 		Command: command,
 	}
 
 	ui.Message(fmt.Sprintf("Running Puppet: %s", command))
-	if err := cmd.StartWithUi(comm, ui); err != nil {
+	if err := cmd.RunWithUi(ctx, comm, ui); err != nil {
 		return fmt.Errorf("Got an error starting command: %s", err)
 	}
 
-	if cmd.ExitStatus != 0 && cmd.ExitStatus != 2 && !p.config.IgnoreExitCodes {
-		return fmt.Errorf("Puppet exited with a non-zero exit status: %d", cmd.ExitStatus)
+	if cmd.ExitStatus() != 0 && cmd.ExitStatus() != 2 && !p.config.IgnoreExitCodes {
+		return fmt.Errorf("Puppet exited with a non-zero exit status: %d", cmd.ExitStatus())
 	}
 
 	if p.config.CleanStagingDir {
@@ -336,12 +363,6 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	}
 
 	return nil
-}
-
-func (p *Provisioner) Cancel() {
-	// Just hard quit. It isn't a big deal if what we're doing keeps
-	// running on the other side.
-	os.Exit(0)
 }
 
 func (p *Provisioner) uploadHieraConfig(ui packer.Ui, comm packer.Communicator) (string, error) {
@@ -410,21 +431,22 @@ func (p *Provisioner) createDir(ui packer.Ui, comm packer.Communicator, dir stri
 	ui.Message(fmt.Sprintf("Creating directory: %s", dir))
 
 	cmd := &packer.RemoteCmd{Command: p.guestCommands.CreateDir(dir)}
+	ctx := context.TODO()
 
-	if err := cmd.StartWithUi(comm, ui); err != nil {
+	if err := cmd.RunWithUi(ctx, comm, ui); err != nil {
 		return err
 	}
 
-	if cmd.ExitStatus != 0 {
+	if cmd.ExitStatus() != 0 {
 		return fmt.Errorf("Non-zero exit status.")
 	}
 
 	// Chmod the directory to 0777 just so that we can access it as our user
 	cmd = &packer.RemoteCmd{Command: p.guestCommands.Chmod(dir, "0777")}
-	if err := cmd.StartWithUi(comm, ui); err != nil {
+	if err := cmd.RunWithUi(ctx, comm, ui); err != nil {
 		return err
 	}
-	if cmd.ExitStatus != 0 {
+	if cmd.ExitStatus() != 0 {
 		return fmt.Errorf("Non-zero exit status. See output above for more info.")
 	}
 
@@ -432,15 +454,14 @@ func (p *Provisioner) createDir(ui packer.Ui, comm packer.Communicator, dir stri
 }
 
 func (p *Provisioner) removeDir(ui packer.Ui, comm packer.Communicator, dir string) error {
-	cmd := &packer.RemoteCmd{
-		Command: fmt.Sprintf("rm -fr '%s'", dir),
-	}
+	ctx := context.TODO()
 
-	if err := cmd.StartWithUi(comm, ui); err != nil {
+	cmd := &packer.RemoteCmd{Command: p.guestCommands.RemoveDir(dir)}
+	if err := cmd.RunWithUi(ctx, comm, ui); err != nil {
 		return err
 	}
 
-	if cmd.ExitStatus != 0 {
+	if cmd.ExitStatus() != 0 {
 		return fmt.Errorf("Non-zero exit status.")
 	}
 
@@ -459,4 +480,21 @@ func (p *Provisioner) uploadDirectory(ui packer.Ui, comm packer.Communicator, ds
 	}
 
 	return comm.UploadDir(dst, src, nil)
+}
+
+func (p *Provisioner) Communicator() packer.Communicator {
+	return p.communicator
+}
+
+func (p *Provisioner) ElevatedUser() string {
+	return p.config.ElevatedUser
+}
+
+func (p *Provisioner) ElevatedPassword() string {
+	// Replace ElevatedPassword for winrm users who used this feature
+	p.config.ctx.Data = p.generatedData
+
+	elevatedPassword, _ := interpolate.Render(p.config.ElevatedPassword, &p.config.ctx)
+
+	return elevatedPassword
 }

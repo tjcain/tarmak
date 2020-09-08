@@ -2,17 +2,29 @@
 package ssh
 
 import (
+	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"gopkg.in/src-d/go-git.v4/plumbing/transport"
 	"gopkg.in/src-d/go-git.v4/plumbing/transport/internal/common"
 
+	"github.com/kevinburke/ssh_config"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/proxy"
 )
 
 // DefaultClient is the default SSH client.
 var DefaultClient = NewClient(nil)
+
+// DefaultSSHConfig is the reader used to access parameters stored in the
+// system's ssh_config files. If nil all the ssh_config are ignored.
+var DefaultSSHConfig sshConfig = ssh_config.DefaultUserSettings
+
+type sshConfig interface {
+	Get(alias, key string) string
+}
 
 // NewClient creates a new SSH client with an optional *ssh.ClientConfig.
 func NewClient(config *ssh.ClientConfig) transport.Transport {
@@ -105,7 +117,7 @@ func (c *command) connect() error {
 
 	overrideConfig(c.config, config)
 
-	c.client, err = ssh.Dial("tcp", c.getHostWithPort(), config)
+	c.client, err = dial("tcp", c.getHostWithPort(), config)
 	if err != nil {
 		return err
 	}
@@ -120,7 +132,34 @@ func (c *command) connect() error {
 	return nil
 }
 
+func dial(network, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+	var (
+		ctx    = context.Background()
+		cancel context.CancelFunc
+	)
+	if config.Timeout > 0 {
+		ctx, cancel = context.WithTimeout(ctx, config.Timeout)
+	} else {
+		ctx, cancel = context.WithCancel(ctx)
+	}
+	defer cancel()
+
+	conn, err := proxy.Dial(ctx, network, addr)
+	if err != nil {
+		return nil, err
+	}
+	c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
+	if err != nil {
+		return nil, err
+	}
+	return ssh.NewClient(c, chans, reqs), nil
+}
+
 func (c *command) getHostWithPort() string {
+	if addr, found := c.doGetHostWithPortFromSSHConfig(); found {
+		return addr
+	}
+
 	host := c.endpoint.Host
 	port := c.endpoint.Port
 	if port <= 0 {
@@ -128,6 +167,35 @@ func (c *command) getHostWithPort() string {
 	}
 
 	return fmt.Sprintf("%s:%d", host, port)
+}
+
+func (c *command) doGetHostWithPortFromSSHConfig() (addr string, found bool) {
+	if DefaultSSHConfig == nil {
+		return
+	}
+
+	host := c.endpoint.Host
+	port := c.endpoint.Port
+
+	configHost := DefaultSSHConfig.Get(c.endpoint.Host, "Hostname")
+	if configHost != "" {
+		host = configHost
+		found = true
+	}
+
+	if !found {
+		return
+	}
+
+	configPort := DefaultSSHConfig.Get(c.endpoint.Host, "Port")
+	if configPort != "" {
+		if i, err := strconv.Atoi(configPort); err == nil {
+			port = i
+		}
+	}
+
+	addr = fmt.Sprintf("%s:%d", host, port)
+	return
 }
 
 func (c *command) setAuthFromEndpoint() error {

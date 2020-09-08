@@ -7,13 +7,14 @@ import (
 	"strings"
 
 	etcdv3 "github.com/coreos/etcd/clientv3"
+
 	"github.com/hashicorp/terraform/backend"
-	"github.com/hashicorp/terraform/state"
-	"github.com/hashicorp/terraform/state/remote"
-	"github.com/hashicorp/terraform/terraform"
+	"github.com/hashicorp/terraform/states"
+	"github.com/hashicorp/terraform/states/remote"
+	"github.com/hashicorp/terraform/states/statemgr"
 )
 
-func (b *Backend) States() ([]string, error) {
+func (b *Backend) Workspaces() ([]string, error) {
 	res, err := b.client.Get(context.TODO(), b.prefix, etcdv3.WithPrefix(), etcdv3.WithKeysOnly())
 	if err != nil {
 		return nil, err
@@ -29,7 +30,7 @@ func (b *Backend) States() ([]string, error) {
 	return result, nil
 }
 
-func (b *Backend) DeleteState(name string) error {
+func (b *Backend) DeleteWorkspace(name string) error {
 	if name == backend.DefaultStateName || name == "" {
 		return fmt.Errorf("Can't delete default state.")
 	}
@@ -40,8 +41,8 @@ func (b *Backend) DeleteState(name string) error {
 	return err
 }
 
-func (b *Backend) State(name string) (state.State, error) {
-	var stateMgr state.State = &remote.State{
+func (b *Backend) StateMgr(name string) (statemgr.Full, error) {
+	var stateMgr statemgr.Full = &remote.State{
 		Client: &RemoteClient{
 			Client: b.client,
 			DoLock: b.lock,
@@ -50,10 +51,10 @@ func (b *Backend) State(name string) (state.State, error) {
 	}
 
 	if !b.lock {
-		stateMgr = &state.LockDisabled{Inner: stateMgr}
+		stateMgr = &statemgr.LockDisabled{Inner: stateMgr}
 	}
 
-	lockInfo := state.NewLockInfo()
+	lockInfo := statemgr.NewLockInfo()
 	lockInfo.Operation = "init"
 	lockId, err := stateMgr.Lock(lockInfo)
 	if err != nil {
@@ -73,7 +74,7 @@ func (b *Backend) State(name string) (state.State, error) {
 	}
 
 	if v := stateMgr.State(); v == nil {
-		if err := stateMgr.WriteState(terraform.NewState()); err != nil {
+		if err := stateMgr.WriteState(states.NewState()); err != nil {
 			err = lockUnlock(err)
 			return nil, err
 		}

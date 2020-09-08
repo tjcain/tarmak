@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/google/goterm/term"
 )
@@ -44,7 +46,7 @@ func NewStatus(code codes.Code, msg string) *Status {
 	return &Status{code, msg}
 }
 
-// NewStatusf returns a Status with the providead code and a formatted message.
+// NewStatusf returns a Status with the provided code and a formatted message.
 func NewStatusf(code codes.Code, format string, a ...interface{}) *Status {
 	return NewStatus(code, fmt.Sprintf(fmt.Sprintf(format, a...)))
 }
@@ -71,6 +73,15 @@ func CheckDuration(d time.Duration) Option {
 		prev := e.chkDuration
 		e.chkDuration = d
 		return CheckDuration(prev)
+	}
+}
+
+// SendTimeout set timeout for Send commands
+func SendTimeout(timeout time.Duration) Option {
+	return func(e *GExpect) Option {
+		prev := e.sendTimeout
+		e.sendTimeout = timeout
+		return SendTimeout(prev)
 	}
 }
 
@@ -159,14 +170,23 @@ func SetEnv(env []string) Option {
 	}
 }
 
-// SetSysProcAttr sets the SysProcAttr syscall values for the spawned process. 
-// Because this modifies cmd, it will only work with the process spawners 
+// SetSysProcAttr sets the SysProcAttr syscall values for the spawned process.
+// Because this modifies cmd, it will only work with the process spawners
 // and not effect the GExpect option method.
 func SetSysProcAttr(args *syscall.SysProcAttr) Option {
 	return func(e *GExpect) Option {
 		prev := e.cmd.SysProcAttr
 		e.cmd.SysProcAttr = args
 		return SetSysProcAttr(prev)
+	}
+}
+
+// PartialMatch enables/disables the returning of unmatched buffer so that consecutive expect call works.
+func PartialMatch(v bool) Option {
+	return func(e *GExpect) Option {
+		prev := e.partialMatch
+		e.partialMatch = v
+		return PartialMatch(prev)
 	}
 }
 
@@ -178,6 +198,8 @@ const (
 	BatchExpect
 	// BatchSwitchCase for invoking ExpectSwitchCase in a batch
 	BatchSwitchCase
+	// BatchSendSignal for invoking SendSignal in a batch.
+	BatchSendSignal
 )
 
 // TimeoutError is the error returned by all Expect functions upon timer expiry.
@@ -223,6 +245,32 @@ type Batcher interface {
 	Timeout() time.Duration
 	// Cases returns the Caser structure for SwitchCase commands.
 	Cases() []Caser
+}
+
+// BSig implements the Batcher interface for SendSignal commands.
+type BSig struct {
+	// S contains the signal.
+	S syscall.Signal
+}
+
+// Cmd returns the SendSignal command (BatchSendSignal).
+func (bs *BSig) Cmd() int {
+	return BatchSendSignal
+}
+
+// Arg returns the signal integer.
+func (bs *BSig) Arg() string {
+	return strconv.Itoa(int(bs.S))
+}
+
+// Timeout always returns 0 for BSig.
+func (bs *BSig) Timeout() time.Duration {
+	return time.Duration(0)
+}
+
+// Cases always returns nil for BSig.
+func (bs *BSig) Cases() []Caser {
+	return nil
 }
 
 // BExp implements the Batcher interface for Expect commands using the default timeout.
@@ -540,6 +588,8 @@ type GExpect struct {
 	cls func(*GExpect) error
 	// timeout contains the default timeout for a spawned command.
 	timeout time.Duration
+	// sendTimeout contains the default timeout for a send command.
+	sendTimeout time.Duration
 	// chkDuration contains the duration between checks for new incoming data.
 	chkDuration time.Duration
 	// verbose enables verbose logging.
@@ -548,6 +598,8 @@ type GExpect struct {
 	verboseWriter io.Writer
 	// teeWriter receives a duplicate of the spawned process's output when set.
 	teeWriter io.WriteCloser
+	// PartialMatch enables the returning of unmatched buffer so that consecutive expect call works.
+	partialMatch bool
 
 	// mu protects the output buffer. It must be held for any operations on out.
 	mu  sync.Mutex
@@ -605,6 +657,14 @@ func (e *GExpect) ExpectBatch(batch []Batcher, timeout time.Duration) ([]BatchRe
 			if err != nil {
 				return res, err
 			}
+		case BatchSendSignal:
+			sigNr, err := strconv.Atoi(b.Arg())
+			if err != nil {
+				return res, err
+			}
+			if err := e.SendSignal(syscall.Signal(sigNr)); err != nil {
+				return res, err
+			}
 		default:
 			return res, errors.New("unknown command:" + strconv.Itoa(b.Cmd()))
 		}
@@ -616,6 +676,15 @@ func (e *GExpect) check() bool {
 	e.chkMu.RLock()
 	defer e.chkMu.RUnlock()
 	return e.chk(e)
+}
+
+// SendSignal sends a signal to the Expect controlled process.
+// Only works on Process Expecters.
+func (e *GExpect) SendSignal(sig os.Signal) error {
+	if e.cmd == nil {
+		return status.Errorf(codes.Unimplemented, "only process Expecters supported")
+	}
+	return e.cmd.Process.Signal(sig)
 }
 
 // ExpectSwitchCase checks each Case against the accumulated out buffer, sending specified
@@ -702,8 +771,16 @@ func (e *GExpect) ExpectSwitchCase(cs []Caser, timeout time.Duration) (string, [
 				}
 			}
 
-			// Clear the buffer directly after match.
-			o := tbuf.String()
+			tbufString := tbuf.String()
+			o := tbufString
+
+			if e.partialMatch {
+				// Return the part of the buffer that is not matched by the regular expression so that the next expect call will be able to match it.
+				matchIndex := rs[i].FindStringIndex(tbufString)
+				o = tbufString[0:matchIndex[1]]
+				e.returnUnmatchedSuffix(tbufString[matchIndex[1]:])
+			}
+
 			tbuf.Reset()
 
 			st := c.String()
@@ -769,8 +846,13 @@ func (e *GExpect) ExpectSwitchCase(cs []Caser, timeout time.Duration) (string, [
 			}
 		case <-e.rcv:
 			// Data to fetch.
-			if _, err := io.Copy(&tbuf, e); err != nil {
+			nr, err := io.Copy(&tbuf, e)
+			if err != nil {
 				return tbuf.String(), nil, -1, fmt.Errorf("io.Copy failed: %v", err)
+			}
+			// timer shoud be reset when new output is available.
+			if nr > 0 {
+				timer = time.NewTimer(timeout)
 			}
 		}
 	}
@@ -850,6 +932,8 @@ func SpawnFake(b []Batcher, timeout time.Duration, opt ...Option) (*GExpect, <-c
 	if err != nil {
 		return nil, nil, err
 	}
+	// The Tee option should only affect the output not the batcher
+	srv.teeWriter = nil
 
 	go func() {
 		res, err := srv.ExpectBatch(b, timeout)
@@ -863,6 +947,7 @@ func SpawnFake(b []Batcher, timeout time.Duration, opt ...Option) (*GExpect, <-c
 		In:  rw,
 		Out: wr,
 		Close: func() error {
+			srv.Close()
 			return rw.Close()
 		},
 		Check: func() bool { return true },
@@ -1043,6 +1128,9 @@ func (e *GExpect) waitForSession(r chan error, wait func() error, sIn io.WriteCl
 		for {
 			nr, err := out.Read(buf)
 			if err != nil || !e.check() {
+				if e.teeWriter != nil {
+					e.teeWriter.Close()
+				}
 				if err == io.EOF {
 					if e.verbose {
 						log.Printf("read closing down: %v", err)
@@ -1051,6 +1139,11 @@ func (e *GExpect) waitForSession(r chan error, wait func() error, sIn io.WriteCl
 				}
 				return
 			}
+			// Tee output to writer
+			if e.teeWriter != nil {
+				e.teeWriter.Write(buf[:nr])
+			}
+			// Add to buffer
 			e.mu.Lock()
 			e.out.Write(buf[:nr])
 			e.mu.Unlock()
@@ -1085,26 +1178,42 @@ func (e *GExpect) Read(p []byte) (nr int, err error) {
 	return e.out.Read(p)
 }
 
+func (e *GExpect) returnUnmatchedSuffix(p string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	newBuffer := bytes.NewBufferString(p)
+	newBuffer.WriteString(e.out.String())
+	e.out = *newBuffer
+}
+
 // Send sends a string to spawned process.
 func (e *GExpect) Send(in string) error {
 	if !e.check() {
 		return errors.New("expect: Process not running")
 	}
-	e.snd <- in
+
+	if e.sendTimeout == 0 {
+		e.snd <- in
+	} else {
+		select {
+		case <-time.After(e.sendTimeout):
+			return fmt.Errorf("send to spawned process command reached the timeout %v", e.sendTimeout)
+		case e.snd <- in:
+		}
+	}
+
 	if e.verbose {
 		if e.verboseWriter != nil {
 			vStr := fmt.Sprintln(term.Blue("Sent:").String() + fmt.Sprintf(" %q", in))
-			for n, bytesRead, err := 0, 0, error(nil); bytesRead < len(vStr); bytesRead += n {
-				n, err = e.verboseWriter.Write([]byte(vStr)[n:])
-				if err != nil {
-					log.Printf("Write to Verbose Writer failed: %v", err)
-					break
-				}
-				return nil
+			_, err := e.verboseWriter.Write([]byte(vStr))
+			if err != nil {
+				log.Printf("Write to Verbose Writer failed: %v", err)
 			}
+		} else {
+			log.Printf("Sent: %q", in)
 		}
-		log.Printf("Sent: %q", in)
 	}
+
 	return nil
 }
 

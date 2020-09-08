@@ -49,10 +49,7 @@ func resourceAwsEcsService() *schema.Resource {
 				Type:     schema.TypeInt,
 				Optional: true,
 				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-					if d.Get("scheduling_strategy").(string) == ecs.SchedulingStrategyDaemon {
-						return true
-					}
-					return false
+					return d.Get("scheduling_strategy").(string) == ecs.SchedulingStrategyDaemon
 				},
 			},
 
@@ -75,6 +72,12 @@ func resourceAwsEcsService() *schema.Resource {
 				Default:  "EC2",
 			},
 
+			"platform_version": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+			},
+
 			"scheduling_strategy": {
 				Type:     schema.TypeString,
 				Optional: true,
@@ -91,6 +94,33 @@ func resourceAwsEcsService() *schema.Resource {
 				ForceNew: true,
 				Optional: true,
 				Computed: true,
+			},
+
+			"deployment_controller": {
+				Type:     schema.TypeList,
+				Optional: true,
+				MaxItems: 1,
+				// Ignore missing configuration block
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					if old == "1" && new == "0" {
+						return true
+					}
+					return false
+				},
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"type": {
+							Type:     schema.TypeString,
+							ForceNew: true,
+							Optional: true,
+							Default:  ecs.DeploymentControllerTypeEcs,
+							ValidateFunc: validation.StringInSlice([]string{
+								ecs.DeploymentControllerTypeCodeDeploy,
+								ecs.DeploymentControllerTypeEcs,
+							}, false),
+						},
+					},
+				},
 			},
 
 			"deployment_maximum_percent": {
@@ -196,10 +226,7 @@ func resourceAwsEcsService() *schema.Resource {
 							ForceNew: true,
 							Optional: true,
 							DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-								if strings.ToLower(old) == strings.ToLower(new) {
-									return true
-								}
-								return false
+								return strings.EqualFold(old, new)
 							},
 						},
 					},
@@ -244,10 +271,7 @@ func resourceAwsEcsService() *schema.Resource {
 								return value
 							},
 							DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
-								if strings.ToLower(old) == strings.ToLower(new) {
-									return true
-								}
-								return false
+								return strings.EqualFold(old, new)
 							},
 						},
 					},
@@ -272,6 +296,23 @@ func resourceAwsEcsService() *schema.Resource {
 						},
 					},
 				},
+			},
+
+			"propagate_tags": {
+				Type:     schema.TypeString,
+				Optional: true,
+				ForceNew: true,
+				DiffSuppressFunc: func(k, old, new string, d *schema.ResourceData) bool {
+					if old == "NONE" && new == "" {
+						return true
+					}
+					return false
+				},
+				ValidateFunc: validation.StringInSlice([]string{
+					ecs.PropagateTagsService,
+					ecs.PropagateTagsTaskDefinition,
+					"",
+				}, false),
 			},
 
 			"service_registries": {
@@ -336,6 +377,7 @@ func resourceAwsEcsServiceCreate(d *schema.ResourceData, meta interface{}) error
 
 	input := ecs.CreateServiceInput{
 		ClientToken:          aws.String(resource.UniqueId()),
+		DeploymentController: expandEcsDeploymentController(d.Get("deployment_controller").([]interface{})),
 		SchedulingStrategy:   aws.String(schedulingStrategy),
 		ServiceName:          aws.String(d.Get("name").(string)),
 		Tags:                 tagsFromMapECS(d.Get("tags").(map[string]interface{})),
@@ -365,6 +407,14 @@ func resourceAwsEcsServiceCreate(d *schema.ResourceData, meta interface{}) error
 
 	if v, ok := d.GetOk("launch_type"); ok {
 		input.LaunchType = aws.String(v.(string))
+	}
+
+	if v, ok := d.GetOk("propagate_tags"); ok {
+		input.PropagateTags = aws.String(v.(string))
+	}
+
+	if v, ok := d.GetOk("platform_version"); ok {
+		input.PlatformVersion = aws.String(v.(string))
 	}
 
 	loadBalancers := expandEcsLoadBalancers(d.Get("load_balancer").(*schema.Set).List())
@@ -546,6 +596,8 @@ func resourceAwsEcsServiceRead(d *schema.ResourceData, meta interface{}) error {
 	d.Set("health_check_grace_period_seconds", service.HealthCheckGracePeriodSeconds)
 	d.Set("launch_type", service.LaunchType)
 	d.Set("enable_ecs_managed_tags", service.EnableECSManagedTags)
+	d.Set("propagate_tags", service.PropagateTags)
+	d.Set("platform_version", service.PlatformVersion)
 
 	// Save cluster in the same format
 	if strings.HasPrefix(d.Get("cluster").(string), "arn:"+meta.(*AWSClient).partition+":ecs:") {
@@ -568,6 +620,10 @@ func resourceAwsEcsServiceRead(d *schema.ResourceData, meta interface{}) error {
 	if service.DeploymentConfiguration != nil {
 		d.Set("deployment_maximum_percent", service.DeploymentConfiguration.MaximumPercent)
 		d.Set("deployment_minimum_healthy_percent", service.DeploymentConfiguration.MinimumHealthyPercent)
+	}
+
+	if err := d.Set("deployment_controller", flattenEcsDeploymentController(service.DeploymentController)); err != nil {
+		return fmt.Errorf("Error setting deployment_controller for (%s): %s", d.Id(), err)
 	}
 
 	if service.LoadBalancers != nil {
@@ -600,6 +656,34 @@ func resourceAwsEcsServiceRead(d *schema.ResourceData, meta interface{}) error {
 	}
 
 	return nil
+}
+
+func expandEcsDeploymentController(l []interface{}) *ecs.DeploymentController {
+	if len(l) == 0 || l[0] == nil {
+		return nil
+	}
+
+	m := l[0].(map[string]interface{})
+
+	deploymentController := &ecs.DeploymentController{
+		Type: aws.String(m["type"].(string)),
+	}
+
+	return deploymentController
+}
+
+func flattenEcsDeploymentController(deploymentController *ecs.DeploymentController) []interface{} {
+	m := map[string]interface{}{
+		"type": ecs.DeploymentControllerTypeEcs,
+	}
+
+	if deploymentController == nil {
+		return []interface{}{m}
+	}
+
+	m["type"] = aws.StringValue(deploymentController.Type)
+
+	return []interface{}{m}
 }
 
 func flattenEcsNetworkConfiguration(nc *ecs.NetworkConfiguration) []interface{} {
@@ -803,6 +887,11 @@ func resourceAwsEcsServiceUpdate(d *schema.ResourceData, meta interface{}) error
 				MinimumHealthyPercent: aws.Int64(int64(d.Get("deployment_minimum_healthy_percent").(int))),
 			}
 		}
+	}
+
+	if d.HasChange("platform_version") {
+		updateService = true
+		input.PlatformVersion = aws.String(d.Get("platform_version").(string))
 	}
 
 	if d.HasChange("health_check_grace_period_seconds") {
