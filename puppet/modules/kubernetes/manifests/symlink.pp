@@ -1,7 +1,7 @@
 # adds a symlink to hyperkube
 define kubernetes::symlink (
 ){
-  include kubernetes::install
+  include kubernetes::hyperkube_install
   File["${::kubernetes::_dest_dir}/hyperkube"]
   -> file { "${::kubernetes::_dest_dir}/${title}":
     ensure => link,

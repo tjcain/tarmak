@@ -231,14 +231,26 @@ class kubernetes::apiserver(
     }
 
     $authorization_policy_file = "${::kubernetes::config_dir}/${service_name}-abac-policy.json"
-    file{$authorization_policy_file:
-      ensure  => file,
-      mode    => '0640',
-      owner   => 'root',
-      group   => $::kubernetes::params::group,
-      content => template("kubernetes/${service_name}-policy.json.erb"),
-      require => Kubernetes::Symlink[$command_name],
-      notify  => Service["${service_name}.service"],
+    if $::kubernetes::use_hyperkube {
+      file{$authorization_policy_file:
+        ensure  => file,
+        mode    => '0640',
+        owner   => 'root',
+        group   => $::kubernetes::params::group,
+        content => template("kubernetes/${service_name}-policy.json.erb"),
+        require => Kubernetes::Symlink[$command_name],
+        notify  => Service["${service_name}.service"],
+      }
+    } else {
+      file{$authorization_policy_file:
+        ensure  => file,
+        mode    => '0640',
+        owner   => 'root',
+        group   => $::kubernetes::params::group,
+        content => template("kubernetes/${service_name}-policy.json.erb"),
+        #require => Kubernetes::Symlink[$command_name],
+        notify  => Service["${service_name}.service"],
+      }
     }
   }
 
@@ -254,19 +266,34 @@ class kubernetes::apiserver(
     }
 
     $audit_policy_file = "${::kubernetes::config_dir}/audit-policy.yaml"
-    file{$audit_policy_file:
-      ensure  => file,
-      mode    => '0640',
-      owner   => 'root',
-      group   => $::kubernetes::params::group,
-      content => file('kubernetes/audit-policy.yaml'),
-      require => Kubernetes::Symlink[$command_name],
-      notify  => Service["${service_name}.service"],
+    if $::kubernetes::use_hyperkube {
+      file{$audit_policy_file:
+        ensure  => file,
+        mode    => '0640',
+        owner   => 'root',
+        group   => $::kubernetes::params::group,
+        content => file('kubernetes/audit-policy.yaml'),
+        require => Kubernetes::Symlink[$command_name],
+        notify  => Service["${service_name}.service"],
+      }
+    } else {
+      file{$audit_policy_file:
+        ensure  => file,
+        mode    => '0640',
+        owner   => 'root',
+        group   => $::kubernetes::params::group,
+        content => file('kubernetes/audit-policy.yaml'),
+        #require => Kubernetes::Symlink[$command_name],
+        notify  => Service["${service_name}.service"],
+      }
     }
-
   }
 
-  kubernetes::symlink{$command_name:}
+  if $::kubernetes::use_hyperkube {
+      kubernetes::symlink{$command_name:}
+  } else {
+      include kubernetes::install
+  }
   -> file{"${::kubernetes::systemd_dir}/${service_name}.service":
     ensure  => file,
     mode    => '0644',

@@ -37,7 +37,11 @@ class kubernetes::scheduler(
     $_feature_gates = $feature_gates
   }
 
-  kubernetes::symlink{$command_name:}
+  if $::kubernetes::use_hyperkube {
+      kubernetes::symlink{$command_name:}
+  } else {
+      include kubernetes::install
+  }
   -> file{$kubeconfig_path:
     ensure  => file,
     mode    => '0640',

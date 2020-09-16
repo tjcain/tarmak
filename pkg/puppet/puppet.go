@@ -295,6 +295,20 @@ func kubernetesClusterConfigPerRole(conf *clusterv1alpha1.ClusterKubernetes, rol
 		return
 	}
 
+	// hyperkube usage
+	if conf.Hyperkube != nil {
+		hieraData.variables = append(hieraData.variables, fmt.Sprintf(`kubernetes::use_hyperkube: %t`, *conf.Hyperkube))
+	} else {
+		hieraData.variables = append(hieraData.variables, `kubernetes::use_hyperkube: true`)
+	}
+
+	switch roleName {
+	case clusterv1alpha1.KubernetesMasterRoleName:
+		hieraData.variables = append(hieraData.variables, `kubernetes::release_type: "server"`)
+	default:
+		hieraData.variables = append(hieraData.variables, `kubernetes::release_type: "node"`)
+	}
+
 	if roleName == clusterv1alpha1.KubernetesMasterRoleName {
 		hieraData.classes = append(hieraData.classes, `kubernetes_addons::cluster_autoscaler`)
 		if conf.ClusterAutoscaler != nil && conf.ClusterAutoscaler.Enabled {

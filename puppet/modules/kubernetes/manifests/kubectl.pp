@@ -18,5 +18,7 @@ class kubernetes::kubectl(
     content => template('kubernetes/kubeconfig.erb'),
   }
 
-  kubernetes::symlink{'kubectl':}
+  if $::kubernetes::use_hyperkube {
+      kubernetes::symlink{'kubectl':}
+  }
 }
