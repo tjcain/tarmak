@@ -3,6 +3,10 @@ class kubernetes (
   $version = $::kubernetes::params::version,
   $aia_version = $::kubernetes::params::aws_authenticator_version,
   $bin_dir = $::kubernetes::params::bin_dir,
+  $os_release = $::kubernetes::params::os_release,
+  $release_arch = $::kubernetes::params::release_arch,
+  $use_hyperkube = true,
+  $release_type = 'node',
   $aia_bin_dir = '/opt/aws_authenticator',
   $download_dir = $::kubernetes::params::download_dir,
   $dest_dir = $::kubernetes::params::dest_dir,
@@ -67,6 +71,13 @@ class kubernetes (
     $_authorization_mode = $authorization_mode
   }
 
+  # detect binaries to expect based on release type
+  if $release_type == 'server' {
+    $binaries = ['kubeadm', 'apiextensions-apiserver', 'kube-apiserver', 'kubelet', 'kube-proxy', 'kubectl', 'kube-controller-manager', 'mounter', 'kube-scheduler']
+  } else {
+      $binaries = ['kubeadm', 'kubelet', 'kube-proxy', 'kubectl']
+  }
+
   if $apiserver_insecure_port == -1 and versioncmp($version, '1.6.0') < 0 {
     $_apiserver_insecure_port = 8080
   } elsif $apiserver_insecure_port == -1 {
@@ -117,6 +128,7 @@ class kubernetes (
     $version,
     'G'
   )
+
   $_dest_dir = "${dest_dir}/kubernetes-${version}"
 
   $aia_download_url = regsubst(

@@ -108,6 +108,7 @@ type ClusterKubernetes struct {
 	Calico            *ClusterKubernetesCalico            `json:"calico,omitempty"`
 
 	GlobalFeatureGates map[string]bool `json:"globalFeatureGates,omitempty"`
+	Hyperkube          *bool           `json:"hyperkube,omitempty"`
 }
 
 type ClusterKubernetesClusterAutoscaler struct {

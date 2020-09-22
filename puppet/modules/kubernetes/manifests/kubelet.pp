@@ -319,7 +319,11 @@ class kubernetes::kubelet(
     }
   }
 
-  kubernetes::symlink{'kubelet':}
+  if $::kubernetes::use_hyperkube {
+      kubernetes::symlink{'kubelet':}
+  } else {
+      include kubernetes::install
+  }
   -> file{"${::kubernetes::systemd_dir}/${service_name}.service":
     ensure  => file,
     mode    => '0644',

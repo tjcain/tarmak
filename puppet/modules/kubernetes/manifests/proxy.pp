@@ -65,7 +65,11 @@ class kubernetes::proxy(
     }
   }
 
-  kubernetes::symlink{$command_name:}
+  if $::kubernetes::use_hyperkube {
+      kubernetes::symlink{$command_name:}
+  } else {
+      include kubernetes::install
+  }
   -> file{"${::kubernetes::systemd_dir}/${service_name}.service":
     ensure  => file,
     mode    => '0644',

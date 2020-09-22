@@ -507,7 +507,17 @@ class kubernetes::master
 
 ### `kubernetes::install`
 
+download and install kubernetes binaries
+
+
+### `kubernetes::hyperkube_install`
+
 download and install hyperkube
+
+
+### `kubernetes::symlink`
+
+adds a symlink to hyperkube
 
 
 ### `kubernetes::kubectl`
@@ -981,7 +991,3 @@ Concat fragment for apply
 * Type: `Any`
 * Default: `'yaml'`
 
-
-### `kubernetes::symlink`
-
-adds a symlink to hyperkube

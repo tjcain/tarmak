@@ -38,12 +38,18 @@ func SetDefaults_Cluster(obj *Cluster) {
 
 	// set default kubernetes version
 	if obj.Kubernetes.Version == "" {
-		obj.Kubernetes.Version = "1.12.9"
+		obj.Kubernetes.Version = "1.16.15"
 	}
 
 	// zone
 	if obj.Kubernetes.Zone == "" {
 		obj.Kubernetes.Zone = "cluster.local"
+	}
+
+	// set hyperkube usage
+
+	if obj.Kubernetes.Hyperkube == nil {
+		obj.Kubernetes.Hyperkube = boolPointer(true)
 	}
 
 	// podCIDR
