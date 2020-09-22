@@ -91,7 +91,7 @@ func newInstancePoolEtcd() *clusterv1alpha1.InstancePool {
 	sp.Type = clusterv1alpha1.InstancePoolTypeEtcd
 	sp.MinCount = 3
 	sp.MaxCount = 3
-	sp.Size = clusterv1alpha1.InstancePoolSizeSmall
+	sp.Size = "t3.medium"
 	sp.Volumes = []clusterv1alpha1.Volume{
 		clusterv1alpha1.Volume{
 			ObjectMeta: metav1.ObjectMeta{Name: "root"},
@@ -112,7 +112,7 @@ func newInstancePoolVault() *clusterv1alpha1.InstancePool {
 	sp.Type = clusterv1alpha1.InstancePoolTypeVault
 	sp.MinCount = 3
 	sp.MaxCount = 3
-	sp.Size = clusterv1alpha1.InstancePoolSizeTiny
+	sp.Size = "t3.small"
 	sp.Volumes = []clusterv1alpha1.Volume{
 		clusterv1alpha1.Volume{
 			ObjectMeta: metav1.ObjectMeta{Name: "root"},
@@ -133,7 +133,7 @@ func newInstancePoolMaster() *clusterv1alpha1.InstancePool {
 	sp.Type = clusterv1alpha1.InstancePoolTypeMaster
 	sp.MinCount = 1
 	sp.MaxCount = 1
-	sp.Size = clusterv1alpha1.InstancePoolSizeMedium
+	sp.Size = "t3.large"
 	sp.Volumes = []clusterv1alpha1.Volume{
 		clusterv1alpha1.Volume{
 			ObjectMeta: metav1.ObjectMeta{Name: "root"},
@@ -154,7 +154,7 @@ func newInstancePoolWorker() *clusterv1alpha1.InstancePool {
 	sp.Type = clusterv1alpha1.InstancePoolTypeWorker
 	sp.MinCount = 3
 	sp.MaxCount = 3
-	sp.Size = clusterv1alpha1.InstancePoolSizeMedium
+	sp.Size = "m5.large"
 	sp.Volumes = []clusterv1alpha1.Volume{
 		clusterv1alpha1.Volume{
 			ObjectMeta: metav1.ObjectMeta{Name: "root"},
