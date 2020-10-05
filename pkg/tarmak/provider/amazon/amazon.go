@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/efs"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -45,6 +46,7 @@ type Amazon struct {
 	ec2      EC2
 	s3       S3
 	kms      KMS
+	efs      EFS
 	dynamodb DynamoDB
 	route53  Route53
 	log      *logrus.Entry
@@ -96,6 +98,11 @@ type KMS interface {
 	CreateAlias(input *kms.CreateAliasInput) (*kms.CreateAliasOutput, error)
 	CreateKey(input *kms.CreateKeyInput) (*kms.CreateKeyOutput, error)
 	DescribeKey(input *kms.DescribeKeyInput) (*kms.DescribeKeyOutput, error)
+}
+
+type EFS interface {
+	CreateFileSystem(*efs.CreateFileSystemInput) (*efs.FileSystemDescription, error)
+	DescribeFileSystems(*efs.DescribeFileSystemsInput) (*efs.DescribeFileSystemsOutput, error)
 }
 
 var _ interfaces.Provider = &Amazon{}
@@ -258,6 +265,17 @@ func (a *Amazon) EC2() (EC2, error) {
 		a.ec2 = ec2.New(sess)
 	}
 	return a.ec2, nil
+}
+
+func (a *Amazon) EFS() (EFS, error) {
+	if a.efs == nil {
+		sess, err := a.Session()
+		if err != nil {
+			return nil, fmt.Errorf("error getting Amazon session: %s", err)
+		}
+		a.efs = efs.New(sess)
+	}
+	return a.efs, nil
 }
 
 func (a *Amazon) S3() (S3, error) {

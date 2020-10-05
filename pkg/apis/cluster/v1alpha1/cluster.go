@@ -84,6 +84,22 @@ type ClusterAmazon struct {
 	AdditionalIAMPolicies []string `json:"additionalIAMPolicies,omitempty"`
 	// When set to true, AWS Elastic Block Storage volumes are encrypted
 	EBSEncrypted *bool `json:"ebsEncrypted,omitempty"`
+
+	EFS *ClusterAmazonEFS `json:"efs,omitemtpy"`
+}
+
+// ClusterAmazonEFS offers Elastic File System specific settings for that
+// instance pool
+type ClusterAmazonEFS struct {
+	// When set to true the cluster will use EFS.
+	Enabled *bool `json:"enabled,omitempty"`
+	// When set to true, AWS Elastic File System volumes are encrypted
+	Encrypted *bool `json:"encrypted,omitempty"`
+	// The performance mode of the file system defaults to generalPurpose
+	PerformanceMode string `json:"performanceMode,omitemtoy"`
+
+	FileSystemId  string `json:"fileSystemId,omitempty"`
+	CreationToken string `json:"creationToken,omitempty"`
 }
 
 type ClusterKubernetes struct {
@@ -147,9 +163,9 @@ type ClusterKubernetesAPIServer struct {
 	Public     bool     `json:"public,omitempty"`
 	AllowCIDRs []string `json:"allowCIDRs,omitempty"`
 
-        // create DNS record for the private load balancer, and optionally lock it down
-        PrivateRecord     bool     `json:"privateRecord,omitempty"`
-        PrivateAllowCIDRs []string `json:"privateAllowCIDRs,omitempty"`
+	// create DNS record for the private load balancer, and optionally lock it down
+	PrivateRecord     bool     `json:"privateRecord,omitempty"`
+	PrivateAllowCIDRs []string `json:"privateAllowCIDRs,omitempty"`
 
 	EnableAdmissionControllers  []string `json:"enableAdmissionControllers,omitempty"`
 	DisableAdmissionControllers []string `json:"disableAdmissionControllers,omitempty"`

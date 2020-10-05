@@ -206,6 +206,11 @@ func (in *ClusterKubernetes) DeepCopyInto(out *ClusterKubernetes) {
 			(*out)[key] = val
 		}
 	}
+	if in.Hyperkube != nil {
+		in, out := &in.Hyperkube, &out.Hyperkube
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
@@ -224,6 +229,11 @@ func (in *ClusterKubernetesAPIServer) DeepCopyInto(out *ClusterKubernetesAPIServ
 	*out = *in
 	if in.AllowCIDRs != nil {
 		in, out := &in.AllowCIDRs, &out.AllowCIDRs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.PrivateAllowCIDRs != nil {
+		in, out := &in.PrivateAllowCIDRs, &out.PrivateAllowCIDRs
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
@@ -792,6 +802,11 @@ func (in *InstancePool) DeepCopyInto(out *InstancePool) {
 	}
 	if in.AllowCIDRs != nil {
 		in, out := &in.AllowCIDRs, &out.AllowCIDRs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.PrivateAllowCIDRs != nil {
+		in, out := &in.PrivateAllowCIDRs, &out.PrivateAllowCIDRs
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}

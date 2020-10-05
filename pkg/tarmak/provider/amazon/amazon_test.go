@@ -21,6 +21,7 @@ type fakeAmazon struct {
 	ctrl *gomock.Controller
 
 	fakeEC2         *mocks.MockEC2
+	fakeEFS         *mocks.MockEFS
 	fakeEnvironment *mocks.MockEnvironment
 	fakeCluster     *mocks.MockCluster
 	fakeTarmak      *mocks.MockTarmak
@@ -40,10 +41,12 @@ func newFakeAmazon(t *testing.T) *fakeAmazon {
 		},
 	}
 	f.fakeEC2 = mocks.NewMockEC2(f.ctrl)
+	f.fakeEFS = mocks.NewMockEFS(f.ctrl)
 	f.fakeEnvironment = mocks.NewMockEnvironment(f.ctrl)
 	f.fakeCluster = mocks.NewMockCluster(f.ctrl)
 	f.fakeTarmak = mocks.NewMockTarmak(f.ctrl)
 	f.Amazon.ec2 = f.fakeEC2
+	f.Amazon.efs = f.fakeEFS
 	f.Amazon.tarmak = f.fakeTarmak
 	f.fakeTarmak.EXPECT().Cluster().AnyTimes().Return(f.fakeCluster)
 	f.fakeTarmak.EXPECT().Environment().AnyTimes().Return(f.fakeEnvironment)
