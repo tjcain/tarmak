@@ -255,10 +255,10 @@ _output/tarmak_darwin_amd64: $(TARMAK_GO_FILES)
 
 
 pkg/tarmak/mocks/tarmak.go: pkg/tarmak/interfaces/interfaces.go $(BINDIR)/mockgen
-	mockgen -package=mocks -source=pkg/tarmak/interfaces/interfaces.go -destination $@
+	$(BINDIR)/mockgen -package=mocks -source=pkg/tarmak/interfaces/interfaces.go -destination $@
 
 pkg/tarmak/mocks/amazon.go: pkg/tarmak/provider/amazon/amazon.go $(BINDIR)/mockgen
-	mockgen -package=mocks -source=pkg/tarmak/provider/amazon/amazon.go -destination $@
+	$(BINDIR)/mockgen -package=mocks -source=pkg/tarmak/provider/amazon/amazon.go -destination $@
 
 pkg/tarmak/binaries/binaries_bindata.go: _output/wing_linux_amd64 _output/tagging_control_linux_amd64 pkg/tarmak/binaries/binaries.go $(BINDIR)/go-bindata
 	go generate ./pkg/tarmak/binaries
@@ -267,13 +267,13 @@ pkg/tarmak/assets/assets_bindata.go: $(shell find packer/ puppet/ terraform/ -ty
 	go generate ./pkg/tarmak/assets
 
 pkg/wing/mocks/http_client.go: vendor/k8s.io/client-go/rest/request.go $(BINDIR)/mockgen
-	mockgen -package=mocks -source=vendor/k8s.io/client-go/rest/request.go -destination $@
+	$(BINDIR)/mockgen -package=mocks -source=vendor/k8s.io/client-go/rest/request.go -destination $@
 
 pkg/wing/mocks/command.go: pkg/wing/command.go $(BINDIR)/mockgen
-	mockgen -package=mocks -source=pkg/wing/command.go -destination $@
+	$(BINDIR)/mockgen -package=mocks -source=pkg/wing/command.go -destination $@
 
 pkg/wing/mocks/client.go: $(shell go list -f '{{ $$global := .}}{{ range .GoFiles }}{{ printf "%s/%s\n" $$global.Dir . }}{{ end}}' ./vendor/k8s.io/client-go/rest) $(BINDIR)/mockgen
-	mockgen -destination $@ -package=mocks k8s.io/client-go/rest Interface
+	$(BINDIR)/mockgen -destination $@ -package=mocks k8s.io/client-go/rest Interface
 
 ## Release instructions
 .PHONY: release
