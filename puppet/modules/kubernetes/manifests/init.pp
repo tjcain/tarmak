@@ -5,7 +5,7 @@ class kubernetes (
   $bin_dir = $::kubernetes::params::bin_dir,
   $os_release = $::kubernetes::params::os_release,
   $release_arch = $::kubernetes::params::release_arch,
-  $use_hyperkube = true,
+  $use_hyperkube = false,
   $release_type = 'node',
   $aia_bin_dir = '/opt/aws_authenticator',
   $download_dir = $::kubernetes::params::download_dir,
