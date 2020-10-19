@@ -234,6 +234,15 @@ func (t *Tunnel) startDaemon() error {
 
 	cmd := exec.Command(binaryPath, "tunnel", t.dest, t.destPort, t.localPort)
 
+	// The tunnel command is wired up in such a way that passing the -c flag
+	// currently will cause an error, to mitigate this issue we can set the
+	// TARMAK_CONFIG envvar and pass that into the command.
+	if cfg := t.ssh.tarmak.ConfigPath(); cfg != "~/.tarmak" {
+		env := os.Environ()
+		env = append(env, fmt.Sprintf("TARMAK_CONFIG=%s", cfg))
+		cmd.Env = env
+	}
+
 	outR, outW := io.Pipe()
 	errR, errW := io.Pipe()
 	outS := bufio.NewScanner(outR)
