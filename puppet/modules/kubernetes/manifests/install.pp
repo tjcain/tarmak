@@ -42,4 +42,10 @@ class kubernetes::install{
       source => "${::kubernetes::_dest_dir}/kubernetes/${::kubernetes::release_type}/bin/${binary}",
     }
   }
+
+  tidy { '/opt':
+   recurse  => true,
+   matches  => [ '!($::kubernetes::_dest_dir)', 'kubernetes-*'],
+   rmdirs   => true,
+  }
 }
