@@ -3,9 +3,9 @@ class kubernetes::install{
   include kubernetes
 
   $archive_url = "https://dl.k8s.io/v${::kubernetes::version}/kubernetes-${::kubernetes::release_type}-${::kubernetes::os_release}-${::kubernetes::release_arch}.tar.gz"
-  $post_1_18 = versioncmp($::kubernetes::version, '1.18.0') >= 0
+  $post_1_17 = versioncmp($::kubernetes::version, '1.17.0') >= 0
 
-  if $post_1_18 {
+  if $post_1_17 {
       $checksum_type = 'sha512'
       $checksum_url = "${archive_url}.sha512"
   } else {
