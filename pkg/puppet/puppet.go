@@ -302,6 +302,13 @@ func kubernetesClusterConfigPerRole(conf *clusterv1alpha1.ClusterKubernetes, rol
 		hieraData.variables = append(hieraData.variables, `kubernetes::use_hyperkube: true`)
 	}
 
+	if conf.EncryptionProvider.Enabled {
+		hieraData.variables = append(hieraData.variables, `kubernetes::use_encryption_provider: true`)
+		hieraData.variables = append(hieraData.variables, fmt.Sprintf(`kubernetes::encryption_provider_version: %s`, conf.EncryptionProvider.Version))
+	} else {
+		hieraData.variables = append(hieraData.variables, `kubernetes::use_encryption_provider: false`)
+	}
+
 	switch roleName {
 	case clusterv1alpha1.KubernetesMasterRoleName:
 		hieraData.variables = append(hieraData.variables, `kubernetes::release_type: "server"`)

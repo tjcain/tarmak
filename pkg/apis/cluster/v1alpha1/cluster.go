@@ -99,6 +99,7 @@ type ClusterKubernetes struct {
 	Grafana           *ClusterKubernetesGrafana           `json:"grafana,omiempty"`
 	Heapster          *ClusterKubernetesHeapster          `json:"heapster,omiempty"`
 	InfluxDB          *ClusterKubernetesInfluxDB          `json:"influxDB,omiempty"`
+	EncryptionProvider *ClusterEncryptionProvider          `json:"encryptionProvider"`
 
 	APIServer         *ClusterKubernetesAPIServer         `json:"apiServer,omitempty"`
 	Kubelet           *ClusterKubernetesKubelet           `json:"kubelet,omitempty"`
@@ -215,6 +216,11 @@ type ClusterKubernetesAPIServerAmazonAccessLogs struct {
 
 type ClusterPodSecurityPolicy struct {
 	Enabled bool `json:"enabled,omitempty"`
+}
+
+type ClusterEncryptionProvider struct {
+	Enabled bool   `json:"enabled,omitempty"`
+	Version string `json:"version,omitempty"`
 }
 
 // Configure the cluster internal deployment of prometheus

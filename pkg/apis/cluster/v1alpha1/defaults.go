@@ -111,6 +111,16 @@ func SetDefaults_Cluster(obj *Cluster) {
 		}
 	}
 
+	if obj.Kubernetes.EncryptionProvider == nil {
+		obj.Kubernetes.EncryptionProvider = &ClusterEncryptionProvider{
+			Enabled: false,
+		}
+	} else {
+		if obj.Kubernetes.EncryptionProvider.Version == "" {
+			obj.Kubernetes.EncryptionProvider.Version = "1.0.0"
+		}
+	}
+
 	// EBS encryption off if Amazon interface used
 	// but EBSEncrypted not specified
 	if obj.Amazon == nil {
