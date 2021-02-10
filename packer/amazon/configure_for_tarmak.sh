@@ -48,9 +48,14 @@ yum install -y git puppet-agent vim tmux socat python-pip at jq unzip awscli
 # ensure aws cli works
 aws help 2> /dev/null > /dev/null ||  { yum remove -y awscli && pip install awscli==1.16.68; }
 
+# setup for docker-ce
+yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+touch /root/new-docker 
+grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=0"
+
 # setup kernel parameters
-sed -i '/GRUB_CMDLINE_LINUX=/c\\GRUB_CMDLINE_LINUX=\"console=tty0 crashkernel=0 console=ttyS0,115200 biosdevname=0 net.ifnames=0\"' /etc/sysconfig/grub
-sed -i '/GRUB_CMDLINE_LINUX=/c\\GRUB_CMDLINE_LINUX=\"console=tty0 crashkernel=0 console=ttyS0,115200 biosdevname=0 net.ifnames=0\"' /etc/default/grub
+sed -i '/GRUB_CMDLINE_LINUX=/c\\GRUB_CMDLINE_LINUX=\"console=tty0 crashkernel=0 console=ttyS0,115200 biosdevname=0 net.ifnames=0 cgroup.memory=nokmem\"' /etc/sysconfig/grub
+sed -i '/GRUB_CMDLINE_LINUX=/c\\GRUB_CMDLINE_LINUX=\"console=tty0 crashkernel=0 console=ttyS0,115200 biosdevname=0 net.ifnames=0 cgroup.memory=nokmem\"' /etc/default/grub
 grub2-mkconfig -o /boot/grub2/grub.cfg
 
 # disable kdump service

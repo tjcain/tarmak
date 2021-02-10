@@ -38,8 +38,9 @@ type Amazon struct {
 
 	tarmak interfaces.Tarmak
 
-	availabilityZones *[]string
-	remoteStateKMS    string
+	availabilityZones     *[]string
+	remoteStateKMS        string
+	encryptionProviderKMS string
 
 	session  *session.Session
 	ec2      EC2
@@ -317,6 +318,7 @@ func (a *Amazon) Variables() map[string]interface{} {
 	output["public_zone_id"] = a.conf.Amazon.PublicHostedZoneID
 	output["bucket_prefix"] = a.conf.Amazon.BucketPrefix
 	output["remote_kms_key_id"] = a.remoteStateKMS
+	output["encryption_provider_kms_key_id"] = a.encryptionProviderKMS
 
 	return output
 }
@@ -410,6 +412,10 @@ func (a *Amazon) EnsureRemoteResources() error {
 		}
 
 		if err := a.ensureAWSKeyPair(); err != nil {
+			result = multierror.Append(result, err)
+		}
+
+		if err := a.ensureEncryptionProviderKMS(); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
